@@ -4,4 +4,3 @@ __pycache__/
 *.pyc
 
 .streamlit/secrets.toml
-data/sheets_config.json

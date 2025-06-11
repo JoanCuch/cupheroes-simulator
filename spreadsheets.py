@@ -9,7 +9,7 @@ def connect():
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive"
     ]
-    service_account_info = json.loads(st.secrets["gcp"].to_json())
+    service_account_info = st.secrets["gcp"]
     creds = Credentials.from_service_account_info(service_account_info, scopes=scopes)
     return gspread.authorize(creds)
 
