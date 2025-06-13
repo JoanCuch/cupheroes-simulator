@@ -25,57 +25,46 @@ class PlayerCharacter:
 
 
 @dataclass
-class Daily_Log:
-    
-    log: List[Dict[str, Any]] = field(default_factory=list)
+class Chapter_Log:
+    status: str  # 'win' | 'lose' | 'ongoing'
+    daily_log: List[Dict[str, Any]] = field(default_factory=list)
 
     def add_day(self, day: int, event_name: str, player: PlayerCharacter):
-        self.log.append({
+        self.daily_log.append({
             "day": day,
             "event_name": event_name,
             "player_atk": player.stat_atk,
             "player_def": player.stat_def,
             "player_hp": player.stat_hp,
             "player_maxhp": player.stat_max_hp,
-            "player_delta_atk": self.log[-1]["player_atk"]-player.stat_atk if self.log else 0,
-            "player_delta_def": self.log[-1]["player_def"]-player.stat_def if self.log else 0,
-            "player_delta_hp": self.log[-1]["player_hp"]-player.stat_hp if self.log else 0,
-            "player_delta_maxhp": self.log[-1]["player_maxhp"]-player.stat_max_hp if self.log else 0
+            "player_delta_atk": self.daily_log[-1]["player_atk"]-player.stat_atk if self.daily_log else 0,
+            "player_delta_def": self.daily_log[-1]["player_def"]-player.stat_def if self.daily_log else 0,
+            "player_delta_hp": self.daily_log[-1]["player_hp"]-player.stat_hp if self.daily_log else 0,
+            "player_delta_maxhp": self.daily_log[-1]["player_maxhp"]-player.stat_max_hp if self.daily_log else 0
         })
-
-    def to_dataframe(self) -> pd.DataFrame:
-        return pd.DataFrame(self.log)
-
-@dataclass
-class Chapter_Log:
-    status: str  # 'win' | 'lose'
-    daily_log: Daily_Log
-
-
-
-    
+   
 
 def simulate_chapter(player: PlayerCharacter, events: List[Dict]) -> Chapter_Log:
 
-    daily_log = Daily_Log()
+    chapter_log = Chapter_Log(status="ongoing")
     day = 0
 
-    daily_log.add_day(day, "start", player)
+    chapter_log.add_day(day, "start", player)
 
     for event in events:
         day += 1
 
         if "apply" in event:
             event["apply"](player)
-            daily_log.add_day(day, event["type"], player)
+            chapter_log.add_day(day, event["type"], player)
             st.write(f"Day {day}: {event['type']} applied, player stats: atk={player.stat_atk}, def={player.stat_def}, hp={player.stat_hp}/{player.stat_max_hp}")   
 
         if player.is_dead():
-            return Chapter_Log("lose", daily_log)
+            chapter_log.status = "lose"
+            return chapter_log
 
-    return Chapter_Log("win", daily_log)
-
-
+    chapter_log.status = "win"
+    return chapter_log
 
 def initialize_events(config_df) -> List[Dict]:
 
