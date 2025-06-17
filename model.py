@@ -4,6 +4,77 @@ import pandas as pd
 import random
 import streamlit as st
 import config_import as config_import
+from config_import import ConfigKeys
+
+
+
+@dataclass
+class Meta_stat:
+    name: str = ""
+    initial_value: int = 0
+    meta_bonus_base: int = 0
+    meta_bonus_exp: int = 0
+    meta_cost_base: int = 0
+    meta_cost_exp: int = 0
+    level: int = 0
+
+    def get_bonus(self) -> int:
+        return self.meta_bonus_base + self.meta_bonus_exp * self.level
+    
+    def get_cost(self) -> int:
+        return self.meta_cost_base + self.meta_cost_exp * self.level
+    
+    def level_up(self):
+        self.level += 1
+
+@dataclass
+class Player_meta_progress:
+    stat_atk: Meta_stat
+    stat_def: Meta_stat
+    stat_max_hp: Meta_stat
+    
+    gold: int = 0
+    chapter: int = 0
+
+    @staticmethod
+    def initialize_from_config(config_df) -> 'Player_meta_progress':
+        stat_atk = Meta_stat(
+            name= config_df.loc[config_df[ConfigKeys.STAT_NAME.value] == ConfigKeys.STAT_ATK.value, ConfigKeys.STAT_NAME.value].iloc[0],
+            initial_value= config_df.loc[config_df[ConfigKeys.STAT_NAME.value] == ConfigKeys.STAT_ATK.value, ConfigKeys.STAT_INITIAL_VALUE.value].iloc[0],
+            meta_bonus_base=config_df.loc[config_df[ConfigKeys.STAT_NAME.value] == ConfigKeys.STAT_ATK.value, ConfigKeys.STAT_META_BONUS_BASE.value].iloc[0],
+            meta_bonus_exp=config_df.loc[config_df[ConfigKeys.STAT_NAME.value] == ConfigKeys.STAT_ATK.value, ConfigKeys.STAT_META_BONUS_EXP.value].iloc[0],
+            meta_cost_base=int(config_df.loc[config_df[ConfigKeys.STAT_NAME.value] == ConfigKeys.STAT_ATK.value, ConfigKeys.STAT_META_COST_BASE.value].iloc[0]),
+            meta_cost_exp=int(config_df.loc[config_df[ConfigKeys.STAT_NAME.value] == ConfigKeys.STAT_ATK.value, ConfigKeys.STAT_META_COST_EXP.value].iloc[0]),
+            level=0
+        )
+        stat_def = Meta_stat(
+            name= config_df.loc[config_df[ConfigKeys.STAT_NAME.value] == ConfigKeys.STAT_DEF.value, ConfigKeys.STAT_NAME.value].iloc[0],
+            initial_value= config_df.loc[config_df[ConfigKeys.STAT_NAME.value] == ConfigKeys.STAT_DEF.value, ConfigKeys.STAT_INITIAL_VALUE.value].iloc[0],
+            meta_bonus_base=config_df.loc[config_df[ConfigKeys.STAT_NAME.value] == ConfigKeys.STAT_DEF.value, ConfigKeys.STAT_META_BONUS_BASE.value].iloc[0],
+            meta_bonus_exp=config_df.loc[config_df[ConfigKeys.STAT_NAME.value] == ConfigKeys.STAT_DEF.value, ConfigKeys.STAT_META_BONUS_EXP.value].iloc[0],
+            meta_cost_base=int(config_df.loc[config_df[ConfigKeys.STAT_NAME.value] == ConfigKeys.STAT_DEF.value, ConfigKeys.STAT_META_COST_BASE.value].iloc[0]),
+            meta_cost_exp=int(config_df.loc[config_df[ConfigKeys.STAT_NAME.value] == ConfigKeys.STAT_DEF.value, ConfigKeys.STAT_META_COST_EXP.value].iloc[0]),
+            level=0
+        )
+        stat_max_hp = Meta_stat(
+            name="max_hp",
+            initial_value=config_df.loc[config_df[ConfigKeys.STAT_NAME.value] == ConfigKeys.STAT_MAX_HP.value, ConfigKeys.STAT_INITIAL_VALUE.value].iloc[0],
+            meta_bonus_base=int(config_df.loc[config_df[ConfigKeys.STAT_NAME.value] == ConfigKeys.STAT_MAX_HP.value, ConfigKeys.STAT_META_BONUS_BASE.value].iloc[0]),
+            meta_bonus_exp=int(config_df.loc[config_df[ConfigKeys.STAT_NAME.value] == ConfigKeys.STAT_MAX_HP.value, ConfigKeys.STAT_META_BONUS_EXP.value].iloc[0]),
+            meta_cost_base=int(config_df.loc[config_df[ConfigKeys.STAT_NAME.value] == ConfigKeys.STAT_MAX_HP.value, ConfigKeys.STAT_META_COST_BASE.value].iloc[0]),
+            meta_cost_exp=int(config_df.loc[config_df[ConfigKeys.STAT_NAME.value] == ConfigKeys.STAT_MAX_HP.value, ConfigKeys.STAT_META_COST_EXP.value].iloc[0]),
+            level=0
+        )       
+        gold = 0
+        chapter = 0
+
+        return Player_meta_progress(
+            stat_atk=stat_atk,
+            stat_def=stat_def,
+            stat_max_hp=stat_max_hp,
+            gold=gold,
+            chapter=chapter
+        )
 
 @dataclass
 class PlayerCharacter:
@@ -23,6 +94,8 @@ class PlayerCharacter:
 
     def is_dead(self) -> bool:
         return self.stat_hp <= 0
+    
+    
 
 
 @dataclass
@@ -45,6 +118,12 @@ class EnemyCharacter:
     def is_dead(self) -> bool:
         return self.stat_hp <= 0
 
+
+@dataclass
+class Simulation_Log:
+    chapters_log : List[Dict['str','Chapter_Log']] = field(default_factory=list)
+    #TODO
+
 @dataclass
 class Chapter_Log:
     status: str  # 'win' | 'lose' | 'ongoing'
@@ -63,6 +142,9 @@ class Chapter_Log:
             "player_delta_hp": self.daily_log[-1]["player_hp"]-player.stat_hp if self.daily_log else 0,
             "player_delta_maxhp": self.daily_log[-1]["player_maxhp"]-player.stat_max_hp if self.daily_log else 0
         })
+
+def get_config_value(config_df, row_key: ConfigKeys, column_key: ConfigKeys) -> int:
+    return config_df.loc[config_df[ConfigKeys.STAT_NAME.value] == row_key.value, column_key.value].iloc[0]
    
 def simulate_battle(player: PlayerCharacter, enemy: EnemyCharacter) ->  List[str]:
     
@@ -146,26 +228,35 @@ def initialize_chapter_config(daily_event_df, enemies_df) -> List[Dict]:
 
     return events
 
-def initialize_player(config_df) -> PlayerCharacter:
-    stat_atk = int(config_df.loc[config_df["key"] == "atk", "value"].values[0])
-    stat_def = int(config_df.loc[config_df["key"] == "def", "value"].values[0])
-    stat_max_hp = int(config_df.loc[config_df["key"] == "max_hp", "value"].values[0])
+def initialize_player_character(config_df) -> PlayerCharacter:
+    stat_atk = get_config_value(config_df, ConfigKeys.STAT_ATK, ConfigKeys.STAT_INITIAL_VALUE)
+    stat_def = get_config_value(config_df, ConfigKeys.STAT_DEF, ConfigKeys.STAT_INITIAL_VALUE)
+    stat_max_hp = get_config_value(config_df, ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_INITIAL_VALUE)
     stat_hp = stat_max_hp
 
     player = PlayerCharacter(stat_atk=stat_atk, stat_def=stat_def, stat_hp=stat_hp, stat_max_hp=stat_max_hp)
     return player
 
+def simulate_meta_progression(meta_progress: Player_meta_progress) -> Player_meta_progress:
+    # Simulate the meta progression for the player
+    # This is a placeholder for the actual progression logic
+    meta_progress.gold += 10
+    return meta_progress
 
 def model(config_df) -> List[Chapter_Log]:
     chapter_logs = []
 
+    player_config = config_import.get_player_config()
+    meta_progress = Player_meta_progress.initialize_from_config(player_config)
+
     # Chapters Sequence Loop
     for chapter_number in range(1, 4):  # Capítols 1, 2 i 3
         st.write(f"Simulating Chapter {chapter_number}")
+
         chapter_df = config_import.get_chapter_config(chapter_number)
         enemies_df = config_import.get_enemy_config()
         player_df = config_import.get_player_config()
-        player = initialize_player(player_df)
+        player = initialize_player_character(player_df)
 
         # Llegeix la configuració d'events i enemics
         chapter_config = initialize_chapter_config(chapter_df, enemies_df)

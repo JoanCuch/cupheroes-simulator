@@ -22,6 +22,8 @@ for chapter in chapters_log:
     #st.subheader(f"Chapter: {chapter.name}")
     st.dataframe(chapter.daily_log)
 
+    
+
 """
 log_df = pd.DataFrame(chapters_log[0].chapter_log.daily_log)
 
