@@ -25,6 +25,26 @@ class PlayerCharacter:
 
 
 @dataclass
+class EnemyCharacter:
+    type: str
+    stat_atk: int
+    stat_def: int
+    stat_max_hp: int
+    stat_hp: int
+
+    def modify_atk(self, value: int):
+        self.stat_atk += value
+
+    def modify_def(self, value: int):
+        self.stat_def += value
+
+    def modify_hp(self, value: int):
+        self.stat_hp = min(self.stat_hp + value, self.stat_max_hp)
+
+    def is_dead(self) -> bool:
+        return self.stat_hp <= 0
+
+@dataclass
 class Chapter_Log:
     status: str  # 'win' | 'lose' | 'ongoing'
     daily_log: List[Dict[str, Any]] = field(default_factory=list)
@@ -43,6 +63,32 @@ class Chapter_Log:
             "player_delta_maxhp": self.daily_log[-1]["player_maxhp"]-player.stat_max_hp if self.daily_log else 0
         })
    
+def simulate_battle(player: PlayerCharacter, enemy: EnemyCharacter) ->  List[str]:
+    
+    battle_log = []
+
+    while not player.is_dead() and not enemy.is_dead():
+        # Player attacks enemy
+        damage_to_enemy = max(0, player.stat_atk - enemy.stat_def)
+        enemy.modify_hp(-damage_to_enemy)
+        battle_log.append(f"Player attacks {enemy.type} for {damage_to_enemy} damage. Enemy HP: {enemy.stat_hp}/{enemy.stat_max_hp}")
+
+        if enemy.is_dead():
+            battle_log.append(f"{enemy.type} defeated!")
+            break
+
+        # Enemy attacks player
+        damage_to_player = max(0, enemy.stat_atk - player.stat_def)
+        player.modify_hp(-damage_to_player)
+        battle_log.append(f"{enemy.type} attacks player for {damage_to_player} damage. Player HP: {player.stat_hp}/{player.stat_max_hp}")
+
+        if player.is_dead():
+            battle_log.append("Battle ended: Player defeated!")
+            break
+
+    st.data_editor(battle_log)
+    battle_log.append("Battle ended")
+    return battle_log
 
 def simulate_chapter(player: PlayerCharacter, events: List[Dict]) -> Chapter_Log:
 
@@ -54,7 +100,11 @@ def simulate_chapter(player: PlayerCharacter, events: List[Dict]) -> Chapter_Log
     for event in events:
         day += 1
 
-        if "apply" in event:
+        if event["type"] == "battle":
+            simulate_battle(player, event["apply"])
+            chapter_log.add_day(day, event["type"], player)
+            st.write(f"Day {day}: Battle with {event['apply'].type} completed, player stats: atk={player.stat_atk}, def={player.stat_def}, hp={player.stat_hp}/{player.stat_max_hp}")
+        else:
             event["apply"](player)
             chapter_log.add_day(day, event["type"], player)
             st.write(f"Day {day}: {event['type']} applied, player stats: atk={player.stat_atk}, def={player.stat_def}, hp={player.stat_hp}/{player.stat_max_hp}")   
@@ -66,38 +116,53 @@ def simulate_chapter(player: PlayerCharacter, events: List[Dict]) -> Chapter_Log
     chapter_log.status = "win"
     return chapter_log
 
-def initialize_events(config_df) -> List[Dict]:
+def initialize_chapter_config(config_df) -> List[Dict]:
 
-    config_events = config_df[["stat", "number"]]
+    daily_event_df = config_df[["daily_event", "daily_event_param"]]
+    enemies_df = config_df[["enemy_type", "enemy_atk", "enemy_def", "enemy_max_hp"]]
 
     events = []
-    
-    for _, row in config_events.iterrows():
-        stat = row["stat"]
-        number = row["number"]
 
-        if stat == "atk":
-            events.append({"type": "atk", "apply": lambda player, n=number: player.modify_atk(n)})
-        elif stat == "def":
-            events.append({"type": "def", "apply": lambda player, n=number: player.modify_def(n)})
-        elif stat == "hp":
-            events.append({"type": "hp", "apply": lambda player, n=number: player.modify_hp(n)})
+    for _, row in daily_event_df.iterrows():
+        daily_event = row["daily_event"]
+        daily_event_param = row["daily_event_param"]
+
+        if daily_event == "atk":
+            events.append({"type": "atk", "apply": lambda player, n=daily_event_param: player.modify_atk(n)})
+        elif daily_event == "def":
+            events.append({"type": "def", "apply": lambda player, n=daily_event_param: player.modify_def(n)})
+        elif daily_event == "hp":
+            events.append({"type": "hp", "apply": lambda player, n=daily_event_param: player.modify_hp(n)})
+        elif daily_event == "battle":
+            enemy_row = enemies_df[enemies_df["enemy_type"] == daily_event_param].iloc[0]
+            events.append({
+                "type": "battle",
+                "apply": EnemyCharacter(
+                    type=enemy_row["enemy_type"],
+                    stat_atk=int(enemy_row["enemy_atk"]),
+                    stat_def=int(enemy_row["enemy_def"]),
+                    stat_max_hp=int(enemy_row["enemy_max_hp"]),
+                    stat_hp=int(enemy_row["enemy_max_hp"])
+                )
+            })
 
     return events
+
+def initialize_player(config_df) -> PlayerCharacter:
+    stat_atk = int(config_df.loc[config_df["key"] == "atk", "value"].values[0])
+    stat_def = int(config_df.loc[config_df["key"] == "def", "value"].values[0])
+    stat_max_hp = int(config_df.loc[config_df["key"] == "max_hp", "value"].values[0])
+    stat_hp = stat_max_hp
+
+    player = PlayerCharacter(stat_atk=stat_atk, stat_def=stat_def, stat_hp=stat_hp, stat_max_hp=stat_max_hp)
+    return player
 
 
 def model(config_df) -> Chapter_Log:
 
-    stat_atk = int(config_df.loc[config_df["key"] == "atk", "value"].values[0])
-    stat_def = int(config_df.loc[config_df["key"] == "def", "value"].values[0])
-    stat_hp = int(config_df.loc[config_df["key"] == "hp", "value"].values[0])
-    stat_max_hp = int(config_df.loc[config_df["key"] == "max_hp", "value"].values[0])
-    days = int(config_df.loc[config_df["key"] == "days", "value"].values[0])
-
-    player = PlayerCharacter(stat_atk=stat_atk, stat_def=stat_def, stat_hp=stat_hp, stat_max_hp=stat_max_hp)
-
-    config_events = initialize_events(config_df)
+    player = initialize_player(config_df)
+    chapter_config = initialize_chapter_config(config_df)
   
     # Run simulation
-    chapter_log = simulate_chapter(player, config_events)
+    chapter_log = simulate_chapter(player, chapter_config)
     return chapter_log
