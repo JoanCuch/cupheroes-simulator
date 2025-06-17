@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 import pandas as pd
 import random
 import streamlit as st
+import config_import as config_import
 
 @dataclass
 class PlayerCharacter:
@@ -86,7 +87,7 @@ def simulate_battle(player: PlayerCharacter, enemy: EnemyCharacter) ->  List[str
             battle_log.append("Battle ended: Player defeated!")
             break
 
-    st.data_editor(battle_log)
+    st.dataframe(battle_log)
     battle_log.append("Battle ended")
     return battle_log
 
@@ -116,16 +117,13 @@ def simulate_chapter(player: PlayerCharacter, events: List[Dict]) -> Chapter_Log
     chapter_log.status = "win"
     return chapter_log
 
-def initialize_chapter_config(config_df) -> List[Dict]:
-
-    daily_event_df = config_df[["daily_event", "daily_event_param"]]
-    enemies_df = config_df[["enemy_type", "enemy_atk", "enemy_def", "enemy_max_hp"]]
+def initialize_chapter_config(daily_event_df, enemies_df) -> List[Dict]:
 
     events = []
 
     for _, row in daily_event_df.iterrows():
-        daily_event = row["daily_event"]
-        daily_event_param = row["daily_event_param"]
+        daily_event = row.iloc[0]
+        daily_event_param = row.iloc[1]
 
         if daily_event == "atk":
             events.append({"type": "atk", "apply": lambda player, n=daily_event_param: player.modify_atk(n)})
@@ -158,11 +156,26 @@ def initialize_player(config_df) -> PlayerCharacter:
     return player
 
 
-def model(config_df) -> Chapter_Log:
+def model(config_df) -> List[Chapter_Log]:
+    chapter_logs = []
 
-    player = initialize_player(config_df)
-    chapter_config = initialize_chapter_config(config_df)
-  
-    # Run simulation
-    chapter_log = simulate_chapter(player, chapter_config)
-    return chapter_log
+    # Chapters Sequence Loop
+    for chapter_number in range(1, 4):  # Capítols 1, 2 i 3
+        st.write(f"Simulating Chapter {chapter_number}")
+        chapter_df = config_import.get_chapter_config(chapter_number)
+        enemies_df = config_import.get_enemy_config()
+        player_df = config_import.get_player_config()
+        player = initialize_player(player_df)
+
+        # Llegeix la configuració d'events i enemics
+        chapter_config = initialize_chapter_config(chapter_df, enemies_df)
+
+        # Simula el capítol
+        chapter_log = simulate_chapter(player, chapter_config)
+        chapter_logs.append(chapter_log)
+
+        # Si el jugador mor, finalitza la run
+        if chapter_log.status == "lose":
+            break
+
+    return chapter_logs

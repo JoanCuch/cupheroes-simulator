@@ -5,7 +5,7 @@ import streamlit as st
 import json
 from typing import Optional
 
-#config_df: Optional[pd.DataFrame] = None
+config_df: Optional[pd.DataFrame] = None
 
 # Connect to Google API
 def connect():
@@ -22,7 +22,8 @@ def read_sheet(sheet_name: str, worksheet_title: str) -> pd.DataFrame:
     client = connect()
     sheet = client.open(sheet_name)
     worksheet = sheet.worksheet(worksheet_title)
-    return pd.DataFrame(worksheet.get_all_records())
+    config_df = pd.DataFrame(worksheet.get_all_records())
+    return config_df
 
 """
 def read_value(key: str) -> str:
@@ -43,5 +44,36 @@ def read_value(key: str) -> str:
 """
 
 def initialize_config() -> pd.DataFrame:
-    config_df = read_sheet("capybara_sim_data", "Config")
+    global config_df
+    if config_df is None:
+        config_df = read_sheet("capybara_sim_data", "Config")
     return config_df
+
+
+def get_chapter_config(chapter_number: int) -> pd.DataFrame:
+
+    global config_df
+    if config_df is None:
+        config_df = initialize_config()
+
+    chapter_daily_config_id = "ch" + str(chapter_number) + "_daily_event"
+    chapter_param_config_id = "ch" + str(chapter_number) + "_daily_event_param"
+
+    columns_to_keep = [chapter_daily_config_id, chapter_param_config_id]
+    return config_df[columns_to_keep].copy()
+
+def get_enemy_config() -> pd.DataFrame:
+    global config_df
+    if config_df is None:
+        config_df = initialize_config()
+
+    columns_to_keep = ["enemy_type", "enemy_atk", "enemy_def", "enemy_max_hp"]
+    return config_df[columns_to_keep].copy()
+
+def get_player_config() -> pd.DataFrame:
+    global config_df
+    if config_df is None:
+        config_df = initialize_config()
+
+    columns_to_keep = ["key", "value"]
+    return config_df[columns_to_keep].copy()
