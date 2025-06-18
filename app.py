@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from config_import import  initialize_config
+from config_import import Config
 from model import model, Chapter_Log
 import matplotlib.pyplot as plt
 
@@ -9,20 +9,38 @@ st.title("Capybara Go Simulator")
 #st.sidebar.button("Reload Page", on_click=st.rerun())
 
 
-config_df = initialize_config()
+config = Config.initialize()
 
+edited_player_config = st.data_editor(
+    config.get_player_config()
+    )
+
+edited_enemies_config = st.data_editor(
+    config.get_enemies_config()
+    )
+
+edited_chapters_config = st.data_editor(
+    config.get_all_chapters_config()
+    )
+
+if st.button("Run Simulation"):
+    config.reasign_config(edited_player_config, edited_enemies_config, edited_chapters_config)
+    result = model(config)
+    st.write(result)
+
+"""
 #st.write(config_df)
 st.divider()
 st.subheader("Chapter Daily Log")
-chapters_log = model(config_df)
+chapters_log = model(edited_config_df)
 
 st.divider()
 
 for chapter in chapters_log:
     #st.subheader(f"Chapter: {chapter.name}")
     st.dataframe(chapter.daily_log)
+"""
 
-    
 
 """
 log_df = pd.DataFrame(chapters_log[0].chapter_log.daily_log)
