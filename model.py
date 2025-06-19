@@ -5,7 +5,7 @@ import random
 import streamlit as st
 import config_import as config_import
 from config_import import ConfigKeys, Config
-
+from enum import Enum
 
 
 @dataclass
@@ -79,6 +79,10 @@ class Player_meta_progression:
             chapter_level=chapter
         )
     
+    def add_gold(self, value:int):
+        self.gold+= value
+        return
+    
     def get_cheapest_stat(self) -> Meta_stat:
         stats = [self.stat_atk, self.stat_def, self.stat_max_hp]
         return min(stats, key=lambda stat: stat.get_cost())
@@ -96,7 +100,7 @@ class Player_meta_progression:
         return
 
 @dataclass
-class PlayerCharacter:
+class Player_Character:
     stat_atk: int
     stat_def: int
     stat_hp: int
@@ -111,8 +115,20 @@ class PlayerCharacter:
     def modify_hp(self, value: int):
         self.stat_hp = min(self.stat_hp + value, self.stat_max_hp)
 
+    def modify_max_hp(self, value: int):
+         self.stat_max_hp+=value
+
     def is_dead(self) -> bool:
         return self.stat_hp <= 0
+    
+    @staticmethod
+    def initialize(stat_atk: int, stat_def:int, stat_max_hp:int) -> 'Player_character':
+        return Player_Character(
+            stat_atk=stat_atk,
+            stat_def=stat_def,
+            stat_hp = stat_max_hp,
+            stat_max_hp=stat_max_hp
+        )
     
 @dataclass
 class EnemyCharacter:
@@ -133,6 +149,134 @@ class EnemyCharacter:
 
     def is_dead(self) -> bool:
         return self.stat_hp <= 0
+    
+    @staticmethod
+    def initialize()-> 'EnemyCharacter':
+        return EnemyCharacter(
+                        type=enemy_row["enemy_type"],
+                        stat_atk=int(enemy_row["enemy_atk"]),
+                        stat_def=int(enemy_row["enemy_def"]),
+                        stat_max_hp=int(enemy_row["enemy_max_hp"]),
+                        stat_hp=int(enemy_row["enemy_max_hp"])
+                    ),
+
+@dataclass
+class Day:
+
+    class EventType(Enum):
+        INCREASE_ATK = "increase_atk"
+        INCREASE_DEF = "increase_def"
+        INCREASE_MAX_HP = "increase_max_hp"
+        RESTORE_HP = "restore_hp"
+        BATTLE = "battle"    
+
+    event_param: Any
+    gold_reward: int
+    event_type: EventType
+    event_enemy: EnemyCharacter
+
+    @staticmethod
+    def initialize(day_config) -> 'Day':
+        event_name = day_config[ConfigKeys.CHAPTER_DAILY_EVENT.value]
+        event_type = Day.EventType(event_name)
+        event_param = day_config[ConfigKeys.CHAPTER_DAILY_EVENT_PARAM.value]
+        gold_reward = int(day_config[ConfigKeys.CHAPTER_DAILY_GOLD_REWARD.value])       
+
+        return Day(
+            event_type=event_type,
+            event_param = event_param,
+            gold_reward=gold_reward,
+            event_enemy=#TODO
+        )
+    
+    def simulate(self, player_character: Player_Character, meta_progression: Player_meta_progression):
+
+        match self.event_type:
+            case Day.EventType.INCREASE_ATK:
+                player_character.modify_atk(self.event_param)
+                meta_progression.add_gold(self.gold_reward)
+            case Day.EventType.INCREASE_DEF:
+                player_character.modify_def(self.event_param)
+                meta_progression.add_gold(self.gold_reward)
+            case Day.EventType.INCREASE_MAX_HP:
+                player_character.modify_max_hp(self.event_param)
+                meta_progression.add_gold(self.gold_reward)
+            case Day.EventType.RESTORE_HP:
+                player_character.modify_hp(self.event_param)
+                meta_progression.add_gold(self.gold_reward)
+            case Day.EventType.BATTLE:
+                simulate_battle(player_character, self.event_enemy)
+                if(not player_character.is_dead()):
+                    meta_progression.add_gold(self.gold_reward)
+            case _:
+                raise ValueError(f"Unknown event type: {self.event_type}")
+            
+        return
+
+
+@dataclass
+class Chapter:
+
+    days: List[Day]
+    player_character: Player_Character
+    meta_progression: Player_meta_progression
+
+    @staticmethod
+    def initialize(chapter_config_df, meta_progression: Player_meta_progression, enemies_config_df) -> 'Chapter':
+
+        #Instantiate the player characteer
+        #Instantiate the day list with all the events
+        days: List[Day] = []
+
+        player_character = initialize_player_character(player_config, meta_progression)
+
+        for index, day_config in chapter_config_df.iterrows():
+
+            new_day = Day.initialize(day_config)
+            days.append(new_day)
+                      
+        return Chapter(days, player_character, meta_progression)
+
+
+    def simulate(self) -> bool:
+
+        for day in self.days:
+            day.simulate(self.player_character, self.meta_progression)
+        
+        victory = True
+        
+        return victory
+    
+    
+
+    def simulate_chapter(player: Player_Character, meta_progression: Player_meta_progression, events: List[Dict]) -> Chapter_Log:
+
+        chapter_log = Chapter_Log(status="ongoing")
+        day = 0
+
+        chapter_log.add_day(day, "start", player)
+
+        for event in events:
+            day += 1
+
+            if event["type"] == "battle":
+                simulate_battle(player, event["apply"])
+                chapter_log.add_day(day, event["type"], player)
+                st.write(f"Day {day}: Battle with {event['apply'].type} completed, player stats: atk={player.stat_atk}, def={player.stat_def}, hp={player.stat_hp}/{player.stat_max_hp}")               
+            else:
+                event["apply"](player)
+                chapter_log.add_day(day, event["type"], player)
+                st.write(f"Day {day}: {event['type']} applied, player stats: atk={player.stat_atk}, def={player.stat_def}, hp={player.stat_hp}/{player.stat_max_hp}")   
+
+            if player.is_dead():
+                chapter_log.status = "lose"
+                return chapter_log
+            else:
+                meta_progression.gold += event["reward"]
+
+        chapter_log.status = "win"
+        return chapter_log
+
 
 @dataclass
 class Simulation_Log:
@@ -144,7 +288,7 @@ class Chapter_Log:
     status: str  # 'win' | 'lose' | 'ongoing'
     daily_log: List[Dict[str, Any]] = field(default_factory=list)
 
-    def add_day(self, day: int, event_name: str, player: PlayerCharacter):
+    def add_day(self, day: int, event_name: str, player: Player_Character):
         self.daily_log.append({
             "day": day,
             "event_name": event_name,
@@ -161,50 +305,18 @@ class Chapter_Log:
 def get_config_value(config_df, row_key: ConfigKeys, column_key: ConfigKeys) -> Any:
     return config_df.loc[config_df[ConfigKeys.STAT_NAME.value] == row_key.value, column_key.value].iloc[0]
 
-def initialize_chapter_config(chapter_config_df, enemies_df) -> List[Dict]:
-
-    events = []
-    st.dataframe(chapter_config_df)
 
 
-    for index, row in chapter_config_df.iterrows():
-
-        daily_event = row[ConfigKeys.CHAPTER_DAILY_EVENT.value]
-        daily_event_param = row[ConfigKeys.CHAPTER_DAILY_EVENT_PARAM.value]
-        reward = int(row[ConfigKeys.CHAPTER_DAILY_GOLD_REWARD.value])
-
-        if daily_event == "atk":
-            events.append({"type": "atk", "apply": lambda player, n=daily_event_param: player.modify_atk(int(n)), "reward": reward})
-        elif daily_event == "def":
-            events.append({"type": "def", "apply": lambda player, n=daily_event_param: player.modify_def(int(n)), "reward": reward})
-        elif daily_event == "hp":
-            events.append({"type": "hp", "apply": lambda player, n=daily_event_param: player.modify_hp(int(n)), "reward": reward})
-        elif daily_event == "battle":
-            enemy_row = enemies_df[enemies_df["enemy_type"] == daily_event_param].iloc[0]
-            events.append({
-                "type": "battle",
-                "apply": EnemyCharacter(
-                    type=enemy_row["enemy_type"],
-                    stat_atk=int(enemy_row["enemy_atk"]),
-                    stat_def=int(enemy_row["enemy_def"]),
-                    stat_max_hp=int(enemy_row["enemy_max_hp"]),
-                    stat_hp=int(enemy_row["enemy_max_hp"])
-                ),
-                "reward": reward
-            })
-
-    return events
-
-def initialize_player_character(config_df, meta_progression: Player_meta_progression) -> PlayerCharacter:
+def initialize_player_character(config_df, meta_progression: Player_meta_progression) -> Player_Character:
     stat_atk = get_config_value(config_df, ConfigKeys.STAT_ATK, ConfigKeys.STAT_INITIAL_VALUE) + meta_progression.stat_atk.get_bonus()
     stat_def = get_config_value(config_df, ConfigKeys.STAT_DEF, ConfigKeys.STAT_INITIAL_VALUE) + meta_progression.stat_def.get_bonus()
     stat_max_hp = get_config_value(config_df, ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_INITIAL_VALUE) + meta_progression.stat_max_hp.get_bonus()
     stat_hp = stat_max_hp
 
-    player = PlayerCharacter(stat_atk=stat_atk, stat_def=stat_def, stat_hp=stat_hp, stat_max_hp=stat_max_hp)
+    player = Player_Character(stat_atk=stat_atk, stat_def=stat_def, stat_hp=stat_hp, stat_max_hp=stat_max_hp)
     return player
 
-def simulate_battle(player: PlayerCharacter, enemy: EnemyCharacter) ->  List[str]:
+def simulate_battle(player: Player_Character, enemy: EnemyCharacter) ->  List[str]:
     
     battle_log = []
 
@@ -231,36 +343,6 @@ def simulate_battle(player: PlayerCharacter, enemy: EnemyCharacter) ->  List[str
     battle_log.append("Battle ended")
     return battle_log
 
-def simulate_chapter(player: PlayerCharacter, meta_progression: Player_meta_progression, events: List[Dict]) -> Chapter_Log:
-
-    chapter_log = Chapter_Log(status="ongoing")
-    day = 0
-
-    chapter_log.add_day(day, "start", player)
-
-    for event in events:
-        day += 1
-
-        if event["type"] == "battle":
-            simulate_battle(player, event["apply"])
-            chapter_log.add_day(day, event["type"], player)
-            st.write(f"Day {day}: Battle with {event['apply'].type} completed, player stats: atk={player.stat_atk}, def={player.stat_def}, hp={player.stat_hp}/{player.stat_max_hp}")               
-        else:
-            event["apply"](player)
-            chapter_log.add_day(day, event["type"], player)
-            st.write(f"Day {day}: {event['type']} applied, player stats: atk={player.stat_atk}, def={player.stat_def}, hp={player.stat_hp}/{player.stat_max_hp}")   
-
-        if player.is_dead():
-            chapter_log.status = "lose"
-            return chapter_log
-        else:
-            meta_progression.gold += event["reward"]
-
-    chapter_log.status = "win"
-    return chapter_log
-
-
-
 def model(config: Config) -> List[Chapter_Log]:
     chapter_logs = []
     player_config = config.get_player_config()
@@ -276,22 +358,23 @@ def model(config: Config) -> List[Chapter_Log]:
     while(total_rounds<=5 and meta_progression.chapter_level<=total_chapters):
     #for totalrounds in range(1, total_chapters+1): 
         total_rounds+=1
+        
+        # Chapter Simulation
         chapter_number = meta_progression.chapter_level
-        st.write(f"Simulating Chapter {chapter_number}")
-
-        # Chapter initialization
         chapter_config = config.get_chapter_config(chapter_number)
-        chapter = initialize_chapter_config(chapter_config, enemies_config)
-        player_character = initialize_player_character(player_config, meta_progression)
+        st.write(f"Simulating Chapter {chapter_number}")
+        chapter = Chapter.initialize(chapter_config, meta_progression, enemies_config)
+        chapter.simulate()
 
         # Chapter Simulation
-        chapter_log = simulate_chapter(player_character,meta_progression, chapter)
-        chapter_logs.append(chapter_log)
+        #chapter_log = simulate_chapter(player_character,meta_progression, chapter)
+        #chapter_logs.append(chapter_log)
+        #TODO Log
 
         # Meta Progression Simulation
         meta_progression.simulate_meta_progression()
 
-        st.write(f"Chapter {chapter_number} completed with status: {chapter_log.status}")
+        #st.write(f"Chapter {chapter_number} completed with status: {chapter_log.status}")
 
         if chapter_log.status == "win":
             st.write(f"Chapter {chapter_number} won! Player stats: atk={player_character.stat_atk}, def={player_character.stat_def}, hp={player_character.stat_hp}/{player_character.stat_max_hp}")
