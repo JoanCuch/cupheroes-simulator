@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import pandas as pd
 import random
 import streamlit as st
@@ -10,25 +10,28 @@ from enum import Enum
 
 @dataclass
 class Meta_stat:
-    name: str = ""
-    initial_value: int = 0
-    meta_bonus_base: int = 0
-    meta_bonus_exp: int = 0
-    meta_cost_base: int = 0
-    meta_cost_exp: int = 0
-    level: int = 0
+    _name: str = ""
+    _initial_value: int = 0
+    _meta_bonus_base: int = 0
+    _meta_bonus_exp: int = 0
+    _meta_cost_base: int = 0
+    _meta_cost_exp: int = 0
+    _level: int = 0
 
-    def get_bonus(self) -> int:
-        return self.meta_bonus_base + self.meta_bonus_exp * self.level
+    def get_value(self) -> int:
+        return self._initial_value + self._meta_bonus_exp * self._level
     
     def get_bonus_increment(self) -> int:
-        return self.meta_bonus_base + self.meta_bonus_exp * (self.level + 1) - (self.meta_bonus_base + self.meta_bonus_exp * self.level)
-    
+        return self._initial_value + self._meta_bonus_exp * (self._level + 1) - (self._initial_value + self._meta_bonus_exp * self._level)
+
     def get_cost(self) -> int:
-        return self.meta_cost_base + self.meta_cost_exp * self.level
-    
+        return self._meta_cost_base + self._meta_cost_exp * self._level
+
     def level_up(self):
-        self.level += 1
+        self._level += 1
+
+    def get_level(self) -> int:
+        return self._level
 
 @dataclass
 class Player_meta_progression:
@@ -42,34 +45,34 @@ class Player_meta_progression:
     @staticmethod
     def initialize(player_config_df) -> 'Player_meta_progression':
         stat_atk = Meta_stat(
-            name=get_config_value(player_config_df, ConfigKeys.STAT_ATK, ConfigKeys.STAT_NAME),
-            initial_value=get_config_value(player_config_df, ConfigKeys.STAT_ATK, ConfigKeys.STAT_INITIAL_VALUE),
-            meta_bonus_base=get_config_value(player_config_df, ConfigKeys.STAT_ATK, ConfigKeys.STAT_META_BONUS_BASE),
-            meta_bonus_exp=get_config_value(player_config_df, ConfigKeys.STAT_ATK, ConfigKeys.STAT_META_BONUS_EXP),
-            meta_cost_base=int(get_config_value(player_config_df, ConfigKeys.STAT_ATK, ConfigKeys.STAT_META_COST_BASE)),
-            meta_cost_exp=int(get_config_value(player_config_df, ConfigKeys.STAT_ATK, ConfigKeys.STAT_META_COST_EXP)),
-            level=0
+            _name=get_config_value(player_config_df, ConfigKeys.STAT_NAME, ConfigKeys.STAT_ATK, ConfigKeys.STAT_NAME),
+            _initial_value=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_ATK, ConfigKeys.STAT_INITIAL_VALUE),
+            _meta_bonus_base=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_ATK, ConfigKeys.STAT_META_BONUS_BASE),
+            _meta_bonus_exp=get_config_value(player_config_df,ConfigKeys.STAT_NAME, ConfigKeys.STAT_ATK, ConfigKeys.STAT_META_BONUS_EXP),
+            _meta_cost_base=int(get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_ATK, ConfigKeys.STAT_META_COST_BASE)),
+            _meta_cost_exp=int(get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_ATK, ConfigKeys.STAT_META_COST_EXP)),
+            _level=0
         )
         stat_def = Meta_stat(
-            name=get_config_value(player_config_df, ConfigKeys.STAT_DEF, ConfigKeys.STAT_NAME),
-            initial_value=get_config_value(player_config_df, ConfigKeys.STAT_DEF, ConfigKeys.STAT_INITIAL_VALUE),
-            meta_bonus_base=get_config_value(player_config_df, ConfigKeys.STAT_DEF, ConfigKeys.STAT_META_BONUS_BASE),
-            meta_bonus_exp=get_config_value(player_config_df, ConfigKeys.STAT_DEF, ConfigKeys.STAT_META_BONUS_EXP),
-            meta_cost_base=int(get_config_value(player_config_df, ConfigKeys.STAT_DEF, ConfigKeys.STAT_META_COST_BASE)),
-            meta_cost_exp=int(get_config_value(player_config_df, ConfigKeys.STAT_DEF, ConfigKeys.STAT_META_COST_EXP)),
-            level=0
+            _name=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_DEF, ConfigKeys.STAT_NAME),
+            _initial_value=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_DEF, ConfigKeys.STAT_INITIAL_VALUE),
+            _meta_bonus_base=get_config_value(player_config_df,ConfigKeys.STAT_NAME, ConfigKeys.STAT_DEF, ConfigKeys.STAT_META_BONUS_BASE),
+            _meta_bonus_exp=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_DEF, ConfigKeys.STAT_META_BONUS_EXP),
+            _meta_cost_base=int(get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_DEF, ConfigKeys.STAT_META_COST_BASE)),
+            _meta_cost_exp=int(get_config_value(player_config_df,ConfigKeys.STAT_NAME, ConfigKeys.STAT_DEF, ConfigKeys.STAT_META_COST_EXP)),
+            _level=0
         )
         stat_max_hp = Meta_stat(
-            name="max_hp",
-            initial_value=player_config_df.loc[player_config_df[ConfigKeys.STAT_NAME.value] == ConfigKeys.STAT_MAX_HP.value, ConfigKeys.STAT_INITIAL_VALUE.value].iloc[0],
-            meta_bonus_base=int(player_config_df.loc[player_config_df[ConfigKeys.STAT_NAME.value] == ConfigKeys.STAT_MAX_HP.value, ConfigKeys.STAT_META_BONUS_BASE.value].iloc[0]),
-            meta_bonus_exp=int(player_config_df.loc[player_config_df[ConfigKeys.STAT_NAME.value] == ConfigKeys.STAT_MAX_HP.value, ConfigKeys.STAT_META_BONUS_EXP.value].iloc[0]),
-            meta_cost_base=int(player_config_df.loc[player_config_df[ConfigKeys.STAT_NAME.value] == ConfigKeys.STAT_MAX_HP.value, ConfigKeys.STAT_META_COST_BASE.value].iloc[0]),
-            meta_cost_exp=int(player_config_df.loc[player_config_df[ConfigKeys.STAT_NAME.value] == ConfigKeys.STAT_MAX_HP.value, ConfigKeys.STAT_META_COST_EXP.value].iloc[0]),
-            level=0
+            _name=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_NAME),
+            _initial_value=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_INITIAL_VALUE),
+            _meta_bonus_base=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_META_BONUS_BASE),
+            _meta_bonus_exp=int(get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_META_BONUS_EXP)),
+            _meta_cost_base=int(get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_META_COST_BASE)),
+            _meta_cost_exp=int(get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_META_COST_EXP)),
+            _level=0
         )       
         gold = 0
-        chapter = 0
+        chapter = 1
 
         return Player_meta_progression(
             stat_atk=stat_atk,
@@ -90,13 +93,13 @@ class Player_meta_progression:
     def simulate_meta_progression(self):
     #get cheapest stat to upgrade
         stat = self.get_cheapest_stat()
-        st.write(f"Cheapest stat to upgrade: {stat.name} with cost {stat.get_cost()} and bonus {stat.get_bonus_increment()}")
+        st.write(f"Cheapest stat to upgrade: {stat._name} with cost {stat.get_cost()} and bonus {stat.get_bonus_increment()}")
 
         if self.gold >= stat.get_cost():
             self.gold -= stat.get_cost()
-            stat.level += 1
-            st.write(f"Upgraded {stat.name} to level {stat.level}")
-            
+            stat.level_up()
+            st.write(f"Upgraded {stat._name} to level {stat.get_level()}")
+
         return
 
 @dataclass
@@ -122,7 +125,7 @@ class Player_Character:
         return self.stat_hp <= 0
     
     @staticmethod
-    def initialize(stat_atk: int, stat_def:int, stat_max_hp:int) -> 'Player_character':
+    def initialize(stat_atk: int, stat_def:int, stat_max_hp:int) -> 'Player_Character':
         return Player_Character(
             stat_atk=stat_atk,
             stat_def=stat_def,
@@ -132,7 +135,13 @@ class Player_Character:
     
 @dataclass
 class EnemyCharacter:
-    type: str
+
+    class Enemy_Types (Enum):
+        SLIME = "slime"
+        SKELETON = "skeleton"
+        BOSS = "boss"
+   
+    type: Enemy_Types
     stat_atk: int
     stat_def: int
     stat_max_hp: int
@@ -151,14 +160,15 @@ class EnemyCharacter:
         return self.stat_hp <= 0
     
     @staticmethod
-    def initialize()-> 'EnemyCharacter':
+    def initialize(enemies_config, enemy_type: Enemy_Types)-> 'EnemyCharacter':
+      
         return EnemyCharacter(
-                        type=enemy_row["enemy_type"],
-                        stat_atk=int(enemy_row["enemy_atk"]),
-                        stat_def=int(enemy_row["enemy_def"]),
-                        stat_max_hp=int(enemy_row["enemy_max_hp"]),
-                        stat_hp=int(enemy_row["enemy_max_hp"])
-                    ),
+            type = enemy_type,
+            stat_atk= get_config_value_str_row(enemies_config, ConfigKeys.ENEMY_TYPE, enemy_type.value, ConfigKeys.ENEMY_ATK),
+            stat_def= get_config_value_str_row(enemies_config, ConfigKeys.ENEMY_TYPE, enemy_type.value, ConfigKeys.ENEMY_DEF),
+            stat_max_hp= get_config_value_str_row(enemies_config, ConfigKeys.ENEMY_TYPE, enemy_type.value, ConfigKeys.ENEMY_MAX_HP),
+            stat_hp= get_config_value_str_row(enemies_config, ConfigKeys.ENEMY_TYPE, enemy_type.value, ConfigKeys.ENEMY_MAX_HP)
+        )
 
 @dataclass
 class Day:
@@ -170,47 +180,61 @@ class Day:
         RESTORE_HP = "restore_hp"
         BATTLE = "battle"    
 
-    event_param: Any
-    gold_reward: int
-    event_type: EventType
-    event_enemy: EnemyCharacter
+    _event_param: Any
+    _gold_reward: int
+    _event_type: EventType
+    _event_enemy: Optional[EnemyCharacter]
 
     @staticmethod
-    def initialize(day_config) -> 'Day':
+    def initialize(day_config, enemies_config) -> 'Day':
         event_name = day_config[ConfigKeys.CHAPTER_DAILY_EVENT.value]
         event_type = Day.EventType(event_name)
         event_param = day_config[ConfigKeys.CHAPTER_DAILY_EVENT_PARAM.value]
-        gold_reward = int(day_config[ConfigKeys.CHAPTER_DAILY_GOLD_REWARD.value])       
+        gold_reward = int(day_config[ConfigKeys.CHAPTER_DAILY_GOLD_REWARD.value]) 
+
+        # Convert event_param to int for numeric operations
+        if event_type in [Day.EventType.INCREASE_ATK, Day.EventType.INCREASE_DEF, 
+                      Day.EventType.INCREASE_MAX_HP, Day.EventType.RESTORE_HP]:
+            event_param = int(event_param)
+
+        enemy_type = None
+        if event_type == Day.EventType.BATTLE:
+            enemy_type = EnemyCharacter.Enemy_Types(event_param)      
 
         return Day(
-            event_type=event_type,
-            event_param = event_param,
-            gold_reward=gold_reward,
-            event_enemy=#TODO
+            _event_type=event_type,
+            _event_param=event_param,
+            _gold_reward=gold_reward,
+            _event_enemy=EnemyCharacter.initialize(
+                enemies_config,
+                enemy_type
+            ) if enemy_type else None
         )
-    
+
     def simulate(self, player_character: Player_Character, meta_progression: Player_meta_progression):
 
-        match self.event_type:
+        match self._event_type:
             case Day.EventType.INCREASE_ATK:
-                player_character.modify_atk(self.event_param)
-                meta_progression.add_gold(self.gold_reward)
+                player_character.modify_atk(self._event_param)
+                meta_progression.add_gold(self._gold_reward)
             case Day.EventType.INCREASE_DEF:
-                player_character.modify_def(self.event_param)
-                meta_progression.add_gold(self.gold_reward)
+                player_character.modify_def(self._event_param)
+                meta_progression.add_gold(self._gold_reward)
             case Day.EventType.INCREASE_MAX_HP:
-                player_character.modify_max_hp(self.event_param)
-                meta_progression.add_gold(self.gold_reward)
+                player_character.modify_max_hp(self._event_param)
+                meta_progression.add_gold(self._gold_reward)
             case Day.EventType.RESTORE_HP:
-                player_character.modify_hp(self.event_param)
-                meta_progression.add_gold(self.gold_reward)
+                player_character.modify_hp(self._event_param)
+                meta_progression.add_gold(self._gold_reward)
             case Day.EventType.BATTLE:
-                simulate_battle(player_character, self.event_enemy)
+                if self._event_enemy is None:
+                    raise ValueError("Battle event requires an enemy character.")
+                simulate_battle(player_character, self._event_enemy)
                 if(not player_character.is_dead()):
-                    meta_progression.add_gold(self.gold_reward)
+                    meta_progression.add_gold(self._gold_reward)
             case _:
-                raise ValueError(f"Unknown event type: {self.event_type}")
-            
+                raise ValueError(f"Unknown event type: {self._event_type}")
+
         return
 
 
@@ -225,58 +249,38 @@ class Chapter:
     def initialize(chapter_config_df, meta_progression: Player_meta_progression, enemies_config_df) -> 'Chapter':
 
         #Instantiate the player characteer
+        player_character = Player_Character.initialize(
+            meta_progression.stat_atk.get_value(),
+            meta_progression.stat_def.get_value(),
+            meta_progression.stat_max_hp.get_value()
+            )    
+        
         #Instantiate the day list with all the events
         days: List[Day] = []
-
-        player_character = initialize_player_character(player_config, meta_progression)
-
-        for index, day_config in chapter_config_df.iterrows():
-
-            new_day = Day.initialize(day_config)
+        for index,day_config in chapter_config_df.iterrows():
+            new_day = Day.initialize(day_config, enemies_config_df)
             days.append(new_day)
-                      
-        return Chapter(days, player_character, meta_progression)
+    
+        #Create the new chapter
+        chapter = Chapter(
+            days,
+            player_character,
+            meta_progression)
+        
+        return chapter
 
 
     def simulate(self) -> bool:
 
+        victory = True
+
         for day in self.days:
             day.simulate(self.player_character, self.meta_progression)
-        
-        victory = True
-        
+            if(self.player_character.is_dead()):
+                victory = False
+                break
+
         return victory
-    
-    
-
-    def simulate_chapter(player: Player_Character, meta_progression: Player_meta_progression, events: List[Dict]) -> Chapter_Log:
-
-        chapter_log = Chapter_Log(status="ongoing")
-        day = 0
-
-        chapter_log.add_day(day, "start", player)
-
-        for event in events:
-            day += 1
-
-            if event["type"] == "battle":
-                simulate_battle(player, event["apply"])
-                chapter_log.add_day(day, event["type"], player)
-                st.write(f"Day {day}: Battle with {event['apply'].type} completed, player stats: atk={player.stat_atk}, def={player.stat_def}, hp={player.stat_hp}/{player.stat_max_hp}")               
-            else:
-                event["apply"](player)
-                chapter_log.add_day(day, event["type"], player)
-                st.write(f"Day {day}: {event['type']} applied, player stats: atk={player.stat_atk}, def={player.stat_def}, hp={player.stat_hp}/{player.stat_max_hp}")   
-
-            if player.is_dead():
-                chapter_log.status = "lose"
-                return chapter_log
-            else:
-                meta_progression.gold += event["reward"]
-
-        chapter_log.status = "win"
-        return chapter_log
-
 
 @dataclass
 class Simulation_Log:
@@ -302,27 +306,22 @@ class Chapter_Log:
             "player_delta_maxhp": self.daily_log[-1]["player_maxhp"]-player.stat_max_hp if self.daily_log else 0
         })
 
-def get_config_value(config_df, row_key: ConfigKeys, column_key: ConfigKeys) -> Any:
-    return config_df.loc[config_df[ConfigKeys.STAT_NAME.value] == row_key.value, column_key.value].iloc[0]
+def get_config_value(config_df, row: ConfigKeys, row_key: ConfigKeys, column_key: ConfigKeys) -> Any:
+    return config_df.loc[config_df[row.value] == row_key.value, column_key.value].iloc[0]
+
+def get_config_value_str_row(config_df, row: ConfigKeys, row_key: str, column_key: ConfigKeys) -> Any:
+    return config_df.loc[config_df[row.value] == row_key, column_key.value].iloc[0]
 
 
 
-def initialize_player_character(config_df, meta_progression: Player_meta_progression) -> Player_Character:
-    stat_atk = get_config_value(config_df, ConfigKeys.STAT_ATK, ConfigKeys.STAT_INITIAL_VALUE) + meta_progression.stat_atk.get_bonus()
-    stat_def = get_config_value(config_df, ConfigKeys.STAT_DEF, ConfigKeys.STAT_INITIAL_VALUE) + meta_progression.stat_def.get_bonus()
-    stat_max_hp = get_config_value(config_df, ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_INITIAL_VALUE) + meta_progression.stat_max_hp.get_bonus()
-    stat_hp = stat_max_hp
 
-    player = Player_Character(stat_atk=stat_atk, stat_def=stat_def, stat_hp=stat_hp, stat_max_hp=stat_max_hp)
-    return player
-
-def simulate_battle(player: Player_Character, enemy: EnemyCharacter) ->  List[str]:
+def simulate_battle(player_character: Player_Character, enemy: EnemyCharacter) ->  List[str]:
     
     battle_log = []
 
-    while not player.is_dead() and not enemy.is_dead():
+    while not player_character.is_dead() and not enemy.is_dead():
         # Player attacks enemy
-        damage_to_enemy = max(0, player.stat_atk - enemy.stat_def)
+        damage_to_enemy = max(0, player_character.stat_atk - enemy.stat_def)
         enemy.modify_hp(-damage_to_enemy)
         battle_log.append(f"Player attacks {enemy.type} for {damage_to_enemy} damage. Enemy HP: {enemy.stat_hp}/{enemy.stat_max_hp}")
 
@@ -331,11 +330,11 @@ def simulate_battle(player: Player_Character, enemy: EnemyCharacter) ->  List[st
             break
 
         # Enemy attacks player
-        damage_to_player = max(0, enemy.stat_atk - player.stat_def)
-        player.modify_hp(-damage_to_player)
-        battle_log.append(f"{enemy.type} attacks player for {damage_to_player} damage. Player HP: {player.stat_hp}/{player.stat_max_hp}")
+        damage_to_player = max(0, enemy.stat_atk - player_character.stat_def)
+        player_character.modify_hp(-damage_to_player)
+        battle_log.append(f"{enemy.type} attacks player for {damage_to_player} damage. Player HP: {player_character.stat_hp}/{player_character.stat_max_hp}")
 
-        if player.is_dead():
+        if player_character.is_dead():
             battle_log.append("Battle ended: Player defeated!")
             break
 
@@ -343,28 +342,28 @@ def simulate_battle(player: Player_Character, enemy: EnemyCharacter) ->  List[st
     battle_log.append("Battle ended")
     return battle_log
 
-def model(config: Config) -> List[Chapter_Log]:
+def model(main_config: Config) -> List[Chapter_Log]:
     chapter_logs = []
-    player_config = config.get_player_config()
-    enemies_config = config.get_enemies_config()
+
+    player_config = main_config.get_player_config()
+    enemies_config = main_config.get_enemies_config()
+    total_chapters = main_config.get_total_chapters()
 
     meta_progression = Player_meta_progression.initialize(player_config)
-    total_chapters = config.get_total_chapters()
-    total_rounds = 0
-    meta_progression.chapter_level += 1 
 
+    rounds_done = 0
+    max_allowed_rounds = 5 #TODO: Turn into config value
 
     # Chapters Sequence Loop
-    while(total_rounds<=5 and meta_progression.chapter_level<=total_chapters):
-    #for totalrounds in range(1, total_chapters+1): 
-        total_rounds+=1
+    while(rounds_done<=max_allowed_rounds and meta_progression.chapter_level<=total_chapters):
+        rounds_done+=1
         
         # Chapter Simulation
-        chapter_number = meta_progression.chapter_level
-        chapter_config = config.get_chapter_config(chapter_number)
-        st.write(f"Simulating Chapter {chapter_number}")
+        chapter_level = meta_progression.chapter_level
+        chapter_config = main_config.get_chapter_config(chapter_level)
+        st.write(f"Simulating Chapter {chapter_level}")
         chapter = Chapter.initialize(chapter_config, meta_progression, enemies_config)
-        chapter.simulate()
+        victory_bool = chapter.simulate()
 
         # Chapter Simulation
         #chapter_log = simulate_chapter(player_character,meta_progression, chapter)
@@ -376,8 +375,8 @@ def model(config: Config) -> List[Chapter_Log]:
 
         #st.write(f"Chapter {chapter_number} completed with status: {chapter_log.status}")
 
-        if chapter_log.status == "win":
-            st.write(f"Chapter {chapter_number} won! Player stats: atk={player_character.stat_atk}, def={player_character.stat_def}, hp={player_character.stat_hp}/{player_character.stat_max_hp}")
+        if victory_bool:
+            st.write(f"Chapter {chapter_level} won!")
             meta_progression.chapter_level += 1 
 
     return chapter_logs

@@ -35,9 +35,9 @@ class ConfigKeys(Enum):
 
 @dataclass
 class Config:
-    player_config_df: pd.DataFrame
-    enemies_config_df: pd.DataFrame
-    chapters_config_df: pd.DataFrame
+    _player_config_df: pd.DataFrame
+    _enemies_config_df: pd.DataFrame
+    _chapters_config_df: pd.DataFrame
 
     @staticmethod
     def initialize() -> 'Config':
@@ -52,38 +52,30 @@ class Config:
         chapters_config_df = pd.DataFrame(sheet.worksheet(ConfigSheets.CHAPTERS_SHEET_NAME.value).get_all_records())
 
         return Config(
-            player_config_df=player_config_df,
-            enemies_config_df=enemies_config_df,
-            chapters_config_df=chapters_config_df
+            _player_config_df=player_config_df,
+            _enemies_config_df=enemies_config_df,
+            _chapters_config_df=chapters_config_df
         )
         
     def get_total_chapters(self) -> int:
-        return self.chapters_config_df['chapter_num'].max()
+        return self._chapters_config_df['chapter_num'].max()
 
     def get_chapter_config(self, chapter_number: int) -> pd.DataFrame:
-        return self.chapters_config_df[self.chapters_config_df['chapter_num'] == chapter_number].copy()
-        """
-        chapter_daily_config_id = "ch" + str(chapter_number) + "_daily_event"
-        chapter_param_config_id = "ch" + str(chapter_number) + "_daily_event_param"
-        chapter_gold_config_id = "ch" + str(chapter_number) + "_daily_gold_reward"
-
-        columns_to_keep = [chapter_daily_config_id, chapter_param_config_id, chapter_gold_config_id]
-        return self.chapters_config_df[columns_to_keep].copy()
-        """
+        return self._chapters_config_df[self._chapters_config_df['chapter_num'] == chapter_number].copy()
 
     def get_all_chapters_config(self) -> pd.DataFrame:
-        return self.chapters_config_df
+        return self._chapters_config_df
 
     def get_player_config(self) -> pd.DataFrame:
-        return self.player_config_df
+        return self._player_config_df
     
     def get_enemies_config(self) -> pd.DataFrame:
-        return self.enemies_config_df
+        return self._enemies_config_df
     
     def reasign_config(self, new_player_config, new_enemies_config, new_chapters_config):
-        self.player_config_df = new_player_config
-        self.enemies_config_df = new_enemies_config
-        self.chapters_config_df = new_chapters_config
+        self._player_config_df = new_player_config
+        self._enemies_config_df = new_enemies_config
+        self._chapters_config_df = new_chapters_config
 
 
 def connect_to_API() -> gspread.Client:
@@ -95,44 +87,3 @@ def connect_to_API() -> gspread.Client:
     creds = Credentials.from_service_account_info(service_account_info, scopes=scopes)
     client = gspread.authorize(creds)
     return client
-
-
-
-"""
-def get_player_config() -> pd.DataFrame:
-    global player_config_df
-    if player_config_df is None:
-        initialize_config()
-    return player_config_df.copy()
-
-
-def get_chapter_config(chapter_number: int) -> pd.DataFrame:
-
-    global config_df
-    if config_df is None:
-        config_df = initialize_config()
-
-    chapter_daily_config_id = "ch" + str(chapter_number) + "_daily_event"
-    chapter_param_config_id = "ch" + str(chapter_number) + "_daily_event_param"
-    chapter_gold_config_id = "ch" + str(chapter_number) + "_daily_gold_reward"
-
-    columns_to_keep = [chapter_daily_config_id, chapter_param_config_id, chapter_gold_config_id]
-    return config_df[columns_to_keep].copy()
-
-def get_enemy_config() -> pd.DataFrame:
-    global config_df
-    if config_df is None:
-        config_df = initialize_config()
-
-    columns_to_keep = [ConfigKeys.ENEMY_TYPE.value, ConfigKeys.ENEMY_ATK.value, ConfigKeys.ENEMY_DEF.value, ConfigKeys.ENEMY_MAX_HP.value]
-    return config_df[columns_to_keep].copy()
-
-def get_player_config() -> pd.DataFrame:
-    global config_df
-    if config_df is None:
-        config_df = initialize_config()
-
-    columns_to_keep = [ConfigKeys.STAT_NAME.value, ConfigKeys.STAT_INITIAL_VALUE.value, ConfigKeys.STAT_META_BONUS_BASE.value, ConfigKeys.STAT_META_BONUS_EXP.value, ConfigKeys.STAT_META_COST_BASE.value, ConfigKeys.STAT_META_COST_EXP.value]
-    st.dataframe(config_df[columns_to_keep])
-    return config_df[columns_to_keep].copy()
-    """
