@@ -6,6 +6,7 @@ import json
 from typing import Optional
 from enum import Enum
 from dataclasses import dataclass, field
+from logger import Logger, Log_Actor, Log_Granularity, Log_Action
 
 class ConfigSheets(Enum):
     SPREADSHEET_NAME = "capybara_sim_data"
@@ -51,11 +52,24 @@ class Config:
         enemies_config_df = pd.DataFrame(sheet.worksheet(ConfigSheets.ENEMIES_SHEET_NAME.value).get_all_records())
         chapters_config_df = pd.DataFrame(sheet.worksheet(ConfigSheets.CHAPTERS_SHEET_NAME.value).get_all_records())
 
-        return Config(
+        config = Config(
             _player_config_df=player_config_df,
             _enemies_config_df=enemies_config_df,
             _chapters_config_df=chapters_config_df
         )
+
+        Logger.add_log(
+            Log_Actor.SIMULATION, Log_Granularity.SIMULATION, Log_Action.INITIALIZE,
+            "Configuration initialized from Google Sheets.",
+            payload={
+                "player_config": player_config_df.to_dict(orient='records'),
+                "enemies_config": enemies_config_df.to_dict(orient='records'),
+                "chapters_config": chapters_config_df.to_dict(orient='records')
+            }
+        )
+
+        return config
+    
         
     def get_total_chapters(self) -> int:
         return self._chapters_config_df['chapter_num'].max()

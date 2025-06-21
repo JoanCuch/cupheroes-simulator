@@ -1,10 +1,10 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Any, Optional
 import pandas as pd
 import config_import as config_import
 from config_import import ConfigKeys, Config
 from enum import Enum
-import copy
+from logger import Logger, Log_Actor, Log_Granularity, Log_Action
 
 @dataclass
 class Meta_stat:
@@ -79,10 +79,13 @@ class Player_meta_progression:
             gold=gold,
             chapter_level=chapter
         )
-        Logger.add_log(AT.META, AS.INIT, {
-            "str": "Meta progression initialized",
-            "copy": new_meta
-        })
+
+        Logger.add_log(
+            Log_Actor.SIMULATION, Log_Granularity.SIMULATION, Log_Action.INITIALIZE,
+            "Meta progression initialized",
+            {"meta_progression": asdict(new_meta) }
+            )       
+
         return new_meta
 
     def add_gold(self, value:int):
@@ -93,32 +96,43 @@ class Player_meta_progression:
         stats = [self.stat_atk, self.stat_def, self.stat_max_hp]
         return min(stats, key=lambda stat: stat.get_cost())
     
-    def simulate_meta_progression(self):
+    def simulate(self):
     #get cheapest stat to upgrade
         stat = self.get_cheapest_stat()
-        Logger.add_log(AT.META, AS.SIMULATE, {
-            "str": f"Cheapest stat to upgrade: {stat._name} with cost {stat.get_cost()} and bonus {stat.get_bonus_increment()}",
-            "copy": {
-                "stat_name": stat._name,
+        Logger.add_log(
+            Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.SIMULATE,
+            f"Simulating meta progression: cheapest stat to upgrade is {stat._name} with cost {stat.get_cost()} and bonus increment {stat.get_bonus_increment()}",
+            {
+                "cheapest_stat": stat._name,
                 "cost": stat.get_cost(),
                 "bonus_increment": stat.get_bonus_increment(),
                 "gold_available": self.gold
             }
-        })
+        )
 
         if self.gold >= stat.get_cost():
             self.gold -= stat.get_cost()
             stat.level_up()
-            Logger.add_log(AT.META, AS.SIMULATE, {
-                "str": f"Upgraded {stat._name} to level {stat.get_level()}",
-                "copy": {
+            Logger.add_log(
+                Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.SIMULATE,
+                f"Upgraded {stat._name} to level {stat.get_level()}",
+                {
                     "stat_name": stat._name,
                     "new_level": stat.get_level(),
                     "new_value": stat.get_value(),
-                    "new_cost": stat.get_cost()
+                    "remaining_gold": self.gold
                 }
-            })
+            )
 
+        return
+
+    def chapter_level_up(self):
+        self.chapter_level += 1
+        Logger.add_log(
+            Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.SIMULATE,
+            f"Chapter level up: new chapter level is {self.chapter_level}",
+            {"chapter_level": self.chapter_level}
+        )
         return
 
 @dataclass
@@ -151,10 +165,12 @@ class Player_Character:
             stat_hp = stat_max_hp,
             stat_max_hp=stat_max_hp
         )
-        Logger.add_log(AT.CHAPTER, AS.INIT_PLAYER_CHARACTER, {
-            "str": "Player character initialized",
-            "copy": new_character
-        })
+        Logger.add_log(Log_Actor.SIMULATION, Log_Granularity.SIMULATION, Log_Action.INITIALIZE,
+            "Player character initialized",
+            {
+                "player_character": asdict(new_character),
+            }
+        )
 
         return new_character
 
@@ -195,10 +211,12 @@ class EnemyCharacter:
             stat_hp= get_config_value_str_row(enemies_config, ConfigKeys.ENEMY_TYPE, enemy_type.value, ConfigKeys.ENEMY_MAX_HP)
         )
 
-        Logger.add_log(AT.CHAPTER, AS.INIT_ENEMY, {
-            "str": f"Enemy character initialized: {new_enemy.type.value}",
-            "copy": new_enemy
-        })
+        Logger.add_log(Log_Actor.SIMULATION, Log_Granularity.SIMULATION, Log_Action.INITIALIZE,
+            "Enemy character initialized",
+            {
+                "enemy_character": asdict(new_enemy),
+            }
+        )
 
         return new_enemy
 
@@ -243,10 +261,12 @@ class Day:
             ) if enemy_type else None
         )   
 
-        Logger.add_log(AT.DAY, AS.INIT, {
-            "str": f"Day initialized with event {event_name}",
-            "copy": new_day
-        })
+        Logger.add_log(Log_Actor.SIMULATION, Log_Granularity.SIMULATION, Log_Action.INITIALIZE,
+            "Day initialized",
+            {
+                "day": asdict(new_day)  
+            }
+        )
 
         return new_day
 
@@ -274,20 +294,15 @@ class Day:
             case _:
                 raise ValueError(f"Unknown event type: {self._event_type}")
             
-        Logger.add_log(AT.DAY, AS.DAY_EVENT, {
-            "str": f"Day event {self._event_type.value} simulated",
-            "copy": {
-                "event_type": self._event_type.value,
-                "event_param": self._event_param,
-                "gold_reward": self._gold_reward,
-                "player_character": {
-                    "atk": player_character.stat_atk,
-                    "def": player_character.stat_def,
-                    "hp": player_character.stat_hp,
-                    "max_hp": player_character.stat_max_hp
-                }
+        Logger.add_log(
+            Log_Actor.SIMULATION, Log_Granularity.DAY, Log_Action.SIMULATE,
+            f"Day simulated with event {self._event_type.value} and param {self._event_param}",
+            {
+                "day": asdict(self),
+                "player_character": asdict(player_character),
+                "meta_progression": asdict(meta_progression),
             }
-        })
+        )
 
         return
 
@@ -321,10 +336,15 @@ class Chapter:
             player_character,
             meta_progression)
         
-        Logger.add_log(AT.CHAPTER, AS.INIT, {
-            "str": f"Chapter initialized with {len(days)} days",
-            "copy": chapter         
-        })    
+        Logger.add_log(Log_Actor.SIMULATION, Log_Granularity.CHAPTER, Log_Action.INITIALIZE,
+            f"Chapter initialized with {len(days)} days",
+            {
+                "chapter_level": meta_progression.chapter_level,
+                "player_character": asdict(player_character),
+                "days_count": len(days),
+                "days": [asdict(day) for day in days]
+            }
+        )
         return chapter
 
 
@@ -338,66 +358,17 @@ class Chapter:
                 victory = False
                 break
 
-        Logger.add_log(AT.CHAPTER, AS.SIMULATE, {
-            "str": f"Chapter simulation completed with status: {'Victory' if victory else 'Defeat'}",
-            "copy": {
-                "player_character": {
-                    "atk": self.player_character.stat_atk,
-                    "def": self.player_character.stat_def,
-                    "hp": self.player_character.stat_hp,
-                    "max_hp": self.player_character.stat_max_hp
-                },
-                "meta_progression": {
-                    "gold": self.meta_progression.gold,
-                    "chapter_level": self.meta_progression.chapter_level
-                },
+        Logger.add_log(
+            Log_Actor.SIMULATION, Log_Granularity.CHAPTER, Log_Action.SIMULATE,
+            f"Chapter {self.meta_progression.chapter_level} simulation completed with status: {'Victory' if victory else 'Defeat'}",
+            {
+                "chapter_level": self.meta_progression.chapter_level,
+                "player_character": asdict(self.player_character),
                 "victory": victory
             }
-        })
+        )
 
         return victory
-
-class AT(Enum):
-    MODEL = "model"
-    META = "meta"
-    CHAPTER = "chapter"
-    DAY = "day"
-    BATTLE = "battle"
-    PLAYER = "player"
-
-class AS(Enum):
-    INIT = "init"
-    SIMULATE = "simulate"
-    INIT_ENEMY = "init_enemy"
-    INIT_PLAYER_CHARACTER = "init_player_character"
-    UPGRADE_STAT = "upgrade_stat"
-    START_CHAPTER = "start_chapter"
-    DAY_EVENT = "day_event"
-    ENEMY_ATTACK = "enemy_attack"
-    PLAYER_ATTACK = "player_attack"
-    END_BATTLE = "end_battle"
-    GAIN_GOLD = "gain_gold"
-    END = "end"
-
-class Logger:
-    _logs = []
-
-    @classmethod
-    def add_log(cls, action_type: AT, action_subtype: AS, payload: dict):
-        log_entry = {
-            "type": action_type.value,
-            "subtype": action_subtype.value,
-            "payload": copy.deepcopy(payload) if payload else {},
-        }
-        cls._logs.append(log_entry)
-
-    @classmethod
-    def get_logs(cls):
-        return cls._logs
-
-    @classmethod
-    def clear_logs(cls):
-        cls._logs = []
 
 def get_config_value(config_df, row: ConfigKeys, row_key: ConfigKeys, column_key: ConfigKeys) -> Any:
     return config_df.loc[config_df[row.value] == row_key.value, column_key.value].iloc[0]
@@ -407,64 +378,86 @@ def get_config_value_str_row(config_df, row: ConfigKeys, row_key: str, column_ke
 
 def simulate_battle(player_character: Player_Character, enemy: EnemyCharacter):
 
+    Logger.add_log(
+        Log_Actor.GAME,
+        Log_Granularity.BATTLE,
+        Log_Action.INITIALIZE, 
+        f"Battle initialized between player and {enemy.type.value}",
+        {
+            "player_character": asdict(player_character),
+            "enemy": asdict(enemy)
+        }
+    )
+
     while not player_character.is_dead() and not enemy.is_dead():
         # Player attacks enemy
         damage_to_enemy = max(0, player_character.stat_atk - enemy.stat_def)
         enemy.modify_hp(-damage_to_enemy)
-        Logger.add_log(AT.BATTLE, AS.PLAYER_ATTACK, {
-            "str": f"Player attacks {enemy.type} for {damage_to_enemy} damage. Enemy HP: {enemy.stat_hp}/{enemy.stat_max_hp}",
-            "copy": {
-                "enemy_type": enemy.type.value,
-                "damage": damage_to_enemy,
-                "enemy_hp": enemy.stat_hp,
-                "enemy_max_hp": enemy.stat_max_hp
-            }
-        })
+
+        Logger.add_log(
+            Log_Actor.GAME, Log_Granularity.TURN, Log_Action.PLAYER_ATTACK,
+            f"Player attacks {enemy.type.value} for {damage_to_enemy} damage. Enemy HP: {enemy.stat_hp}/{enemy.stat_max_hp}",
+            {"player_character": asdict(player_character),
+             "enemy": asdict(enemy), 
+             "damage": damage_to_enemy})
 
         if enemy.is_dead():
-            Logger.add_log(AT.BATTLE, AS.END_BATTLE, {
-                "str": f"{enemy.type} defeated!",
-                "copy": {
-                    "enemy_type": enemy.type.value,
-                    "enemy_hp": enemy.stat_hp,
-                    "enemy_max_hp": enemy.stat_max_hp
+            Logger.add_log(
+                Log_Actor.GAME, Log_Granularity.BATTLE, Log_Action.ENEMY_DEFEATED,
+                f"Enemy {enemy.type.value} defeated!",
+                {
+                    "player_character": asdict(player_character),
+                    "enemy": asdict(enemy),
                 }
-            })
+            )
             break
 
         # Enemy attacks player
         damage_to_player = max(0, enemy.stat_atk - player_character.stat_def)
         player_character.modify_hp(-damage_to_player)
-        Logger.add_log(AT.BATTLE, AS.ENEMY_ATTACK, {
-            "str": f"{enemy.type} attacks player for {damage_to_player} damage. Player HP: {player_character.stat_hp}/{player_character.stat_max_hp}",
-            "copy": {
-                "enemy_type": enemy.type.value,
-                "damage": damage_to_player,
-                "player_hp": player_character.stat_hp,
-                "player_max_hp": player_character.stat_max_hp
-            }
-        })
+
+        Logger.add_log(
+            Log_Actor.GAME, Log_Granularity.TURN, Log_Action.ENEMY_ATTACK,
+            f"{enemy.type.value} attacks player for {damage_to_player} damage. Player HP: {player_character.stat_hp}/{player_character.stat_max_hp}",
+            {"player_character": asdict(player_character),
+             "enemy": asdict(enemy), 
+             "damage": damage_to_player})
+
         if player_character.is_dead():
-            Logger.add_log(AT.BATTLE, AS.END_BATTLE, {
-                "str": "Battle ended: Player defeated!",
-                "copy": {
-                    "player_hp": player_character.stat_hp,
-                    "player_max_hp": player_character.stat_max_hp
+
+            Logger.add_log(
+                Log_Actor.GAME, Log_Granularity.BATTLE, Log_Action.PLAYER_DEFEATED,
+                "Player defeated!",
+                {
+                    "player_character": asdict(player_character),
+                    "enemy": asdict(enemy)
                 }
-            })
+            )
             break
 
     return
 
-def model(main_config: Config) -> List[dict]:
+def model(main_config: Config):
+
+    Logger.add_log(
+        Log_Actor.SIMULATION, Log_Granularity.SIMULATION, Log_Action.INITIALIZE,
+        "Model initialized",{})
+
+    
+    Logger.clear_logs()
 
     player_config = main_config.get_player_config()
     enemies_config = main_config.get_enemies_config()
     total_chapters = main_config.get_total_chapters()
-    Logger.add_log(AT.MODEL, AS.INIT, {"str": "Model initialized with main config", "copy": {"player_config": player_config, "enemies_config": enemies_config, "total_chapters": total_chapters}})
+    
+    Logger.add_log(
+        Log_Actor.SIMULATION, Log_Granularity.SIMULATION, Log_Action.INITIALIZE,
+        "Model initialized configs: player and enemies",
+        {"player_config": player_config,
+         "enemies_config": enemies_config,
+         "total_chapters": total_chapters})
 
     meta_progression = Player_meta_progression.initialize(player_config)
-
 
     rounds_done = 0
     max_allowed_rounds = 5 #TODO: Turn into config value
@@ -472,6 +465,13 @@ def model(main_config: Config) -> List[dict]:
     # Chapters Sequence Loop
     while(rounds_done<=max_allowed_rounds and meta_progression.chapter_level<=total_chapters):
         rounds_done+=1
+
+        Logger.add_log(
+            Log_Actor.SIMULATION, Log_Granularity.CHAPTER, Log_Action.SIMULATE,
+            f"Starting simulation for chapter {meta_progression.chapter_level} in round {rounds_done}",
+            {"chapter_level": meta_progression.chapter_level,
+             "rounds_done": rounds_done,
+             "meta_progression": asdict(meta_progression)})
         
         # Chapter Simulation
         chapter_level = meta_progression.chapter_level
@@ -480,23 +480,19 @@ def model(main_config: Config) -> List[dict]:
         victory_bool = chapter.simulate()
 
         # Chapter Simulation
-        #chapter_log = simulate_chapter(player_character,meta_progression, chapter)
-        #chapter_logs.append(chapter_log)
-        #TODO Log
+        Logger.add_log(
+            Log_Actor.SIMULATION, Log_Granularity.CHAPTER, Log_Action.SIMULATE,
+            f"Chapter {chapter_level} simulation in round {rounds_done} completed with status: {'Victory' if victory_bool else 'Defeat'}",
+            {"chapter_level": chapter_level,
+             "victory": victory_bool,
+             "meta_progression": asdict(meta_progression)}
+        )
 
         # Meta Progression Simulation
-        meta_progression.simulate_meta_progression()
-
-        #st.write(f"Chapter {chapter_number} completed with status: {chapter_log.status}")
+        meta_progression.simulate()
 
         if victory_bool:
             meta_progression.chapter_level += 1 
+            
 
-    Logger.add_log(AT.MODEL, AS.END, {
-        "str": "Model simulation ended at chapter level " + str(meta_progression.chapter_level),
-        "copy": {
-            "player_meta_progression": meta_progression,
-            "chapter_level": meta_progression.chapter_level
-        }
-    })
-    return Logger.get_logs()
+    return
