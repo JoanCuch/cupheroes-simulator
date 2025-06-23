@@ -44,3 +44,12 @@ class Logger:
     @classmethod
     def clear_logs(cls):
         cls._logs = []
+
+    @classmethod
+    def get_logs_as_dataframe(cls):
+        import pandas as pd
+        return pd.DataFrame(cls._logs)
+
+    @classmethod
+    def has_logs(cls):
+        return len(cls._logs) > 0
