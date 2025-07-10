@@ -53,3 +53,18 @@ class Logger:
     @classmethod
     def has_logs(cls):
         return len(cls._logs) > 0
+    
+    @classmethod
+    def get_flattened_logs_df(cls):
+        import pandas as pd
+        raw_logs = cls.get_logs_as_dataframe().to_dict(orient="records")
+
+        flattened_df = pd.json_normalize(
+            raw_logs,
+            sep="."  # aplanar tots els nivells amb noms com 'payload.player_character.hp'
+        )
+
+        if "payload" in flattened_df.columns:
+            flattened_df = flattened_df.drop(columns=["payload"])
+
+        return flattened_df

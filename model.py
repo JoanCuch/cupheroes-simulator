@@ -8,28 +8,28 @@ from logger import Logger, Log_Actor, Log_Granularity, Log_Action
 
 @dataclass
 class Meta_stat:
-    _name: str = ""
-    _initial_value: int = 0
-    _meta_bonus_base: int = 0
-    _meta_bonus_exp: int = 0
-    _meta_cost_base: int = 0
-    _meta_cost_exp: int = 0
-    _level: int = 0
+    name: str = ""
+    initial_value: int = 0
+    meta_bonus_base: int = 0
+    meta_bonus_exp: int = 0
+    meta_cost_base: int = 0
+    meta_cost_exp: int = 0
+    level: int = 0
 
     def get_value(self) -> int:
-        return self._initial_value + self._meta_bonus_exp * self._level
+        return self.initial_value + self.meta_bonus_exp * self.level
     
     def get_bonus_increment(self) -> int:
-        return self._initial_value + self._meta_bonus_exp * (self._level + 1) - (self._initial_value + self._meta_bonus_exp * self._level)
+        return self.initial_value + self.meta_bonus_exp * (self.level + 1) - (self.initial_value + self.meta_bonus_exp * self.level)
 
     def get_cost(self) -> int:
-        return self._meta_cost_base + self._meta_cost_exp * self._level
+        return self.meta_cost_base + self.meta_cost_exp * self.level
 
     def level_up(self):
-        self._level += 1
+        self.level += 1
 
     def get_level(self) -> int:
-        return self._level
+        return self.level
 
 @dataclass
 class Player_meta_progression:
@@ -43,31 +43,31 @@ class Player_meta_progression:
     @staticmethod
     def initialize(player_config_df) -> 'Player_meta_progression':
         stat_atk = Meta_stat(
-            _name=get_config_value(player_config_df, ConfigKeys.STAT_NAME, ConfigKeys.STAT_ATK, ConfigKeys.STAT_NAME),
-            _initial_value=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_ATK, ConfigKeys.STAT_INITIAL_VALUE),
-            _meta_bonus_base=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_ATK, ConfigKeys.STAT_META_BONUS_BASE),
-            _meta_bonus_exp=get_config_value(player_config_df,ConfigKeys.STAT_NAME, ConfigKeys.STAT_ATK, ConfigKeys.STAT_META_BONUS_EXP),
-            _meta_cost_base=int(get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_ATK, ConfigKeys.STAT_META_COST_BASE)),
-            _meta_cost_exp=int(get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_ATK, ConfigKeys.STAT_META_COST_EXP)),
-            _level=0
+            name=get_config_value(player_config_df, ConfigKeys.STAT_NAME, ConfigKeys.STAT_ATK, ConfigKeys.STAT_NAME),
+            initial_value=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_ATK, ConfigKeys.STAT_INITIAL_VALUE),
+            meta_bonus_base=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_ATK, ConfigKeys.STAT_META_BONUS_BASE),
+            meta_bonus_exp=get_config_value(player_config_df,ConfigKeys.STAT_NAME, ConfigKeys.STAT_ATK, ConfigKeys.STAT_META_BONUS_EXP),
+            meta_cost_base=int(get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_ATK, ConfigKeys.STAT_META_COST_BASE)),
+            meta_cost_exp=int(get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_ATK, ConfigKeys.STAT_META_COST_EXP)),
+            level=0
         )
         stat_def = Meta_stat(
-            _name=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_DEF, ConfigKeys.STAT_NAME),
-            _initial_value=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_DEF, ConfigKeys.STAT_INITIAL_VALUE),
-            _meta_bonus_base=get_config_value(player_config_df,ConfigKeys.STAT_NAME, ConfigKeys.STAT_DEF, ConfigKeys.STAT_META_BONUS_BASE),
-            _meta_bonus_exp=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_DEF, ConfigKeys.STAT_META_BONUS_EXP),
-            _meta_cost_base=int(get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_DEF, ConfigKeys.STAT_META_COST_BASE)),
-            _meta_cost_exp=int(get_config_value(player_config_df,ConfigKeys.STAT_NAME, ConfigKeys.STAT_DEF, ConfigKeys.STAT_META_COST_EXP)),
-            _level=0
+            name=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_DEF, ConfigKeys.STAT_NAME),
+            initial_value=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_DEF, ConfigKeys.STAT_INITIAL_VALUE),
+            meta_bonus_base=get_config_value(player_config_df,ConfigKeys.STAT_NAME, ConfigKeys.STAT_DEF, ConfigKeys.STAT_META_BONUS_BASE),
+            meta_bonus_exp=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_DEF, ConfigKeys.STAT_META_BONUS_EXP),
+            meta_cost_base=int(get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_DEF, ConfigKeys.STAT_META_COST_BASE)),
+            meta_cost_exp=int(get_config_value(player_config_df,ConfigKeys.STAT_NAME, ConfigKeys.STAT_DEF, ConfigKeys.STAT_META_COST_EXP)),
+            level=0
         )
         stat_max_hp = Meta_stat(
-            _name=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_NAME),
-            _initial_value=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_INITIAL_VALUE),
-            _meta_bonus_base=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_META_BONUS_BASE),
-            _meta_bonus_exp=int(get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_META_BONUS_EXP)),
-            _meta_cost_base=int(get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_META_COST_BASE)),
-            _meta_cost_exp=int(get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_META_COST_EXP)),
-            _level=0
+            name=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_NAME),
+            initial_value=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_INITIAL_VALUE),
+            meta_bonus_base=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_META_BONUS_BASE),
+            meta_bonus_exp=int(get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_META_BONUS_EXP)),
+            meta_cost_base=int(get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_META_COST_BASE)),
+            meta_cost_exp=int(get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_META_COST_EXP)),
+            level=0
         )       
         gold = 0
         chapter = 1
@@ -101,9 +101,9 @@ class Player_meta_progression:
         stat = self.get_cheapest_stat()
         Logger.add_log(
             Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.SIMULATE,
-            f"Simulating meta progression: cheapest stat to upgrade is {stat._name} with cost {stat.get_cost()} and bonus increment {stat.get_bonus_increment()}",
+            f"Simulating meta progression: cheapest stat to upgrade is {stat.name} with cost {stat.get_cost()} and bonus increment {stat.get_bonus_increment()}",
             {
-                "cheapest_stat": stat._name,
+                "cheapest_stat": stat.name,
                 "cost": stat.get_cost(),
                 "bonus_increment": stat.get_bonus_increment(),
                 "gold_available": self.gold
@@ -115,9 +115,9 @@ class Player_meta_progression:
             stat.level_up()
             Logger.add_log(
                 Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.SIMULATE,
-                f"Upgraded {stat._name} to level {stat.get_level()}",
+                f"Upgraded {stat.name} to level {stat.get_level()}",
                 {
-                    "stat_name": stat._name,
+                    "stat_name": stat.name,
                     "new_level": stat.get_level(),
                     "new_value": stat.get_value(),
                     "remaining_gold": self.gold
@@ -229,11 +229,12 @@ class Day:
         INCREASE_MAX_HP = "increase_max_hp"
         RESTORE_HP = "restore_hp"
         BATTLE = "battle"    
-
-    _event_param: Any
-    _gold_reward: int
-    _event_type: EventType
-    _event_enemy: Optional[EnemyCharacter]
+    chapter_num: int
+    day_num: int
+    event_type: EventType
+    event_param: Any
+    gold_reward: int
+    event_enemy: Optional[EnemyCharacter]
 
     @staticmethod
     def initialize(day_config, enemies_config) -> 'Day':
@@ -241,6 +242,8 @@ class Day:
         event_type = Day.EventType(event_name)
         event_param = day_config[ConfigKeys.CHAPTER_DAILY_EVENT_PARAM.value]
         gold_reward = int(day_config[ConfigKeys.CHAPTER_DAILY_GOLD_REWARD.value]) 
+        chapter_num = int(day_config[ConfigKeys.CHAPTER_NUM.value])
+        day_num = int(day_config[ConfigKeys.CHAPTER_DAY_NUM.value])
 
         # Convert event_param to int for numeric operations
         if event_type in [Day.EventType.INCREASE_ATK, Day.EventType.INCREASE_DEF, 
@@ -252,10 +255,12 @@ class Day:
             enemy_type = EnemyCharacter.Enemy_Types(event_param) 
 
         new_day =  Day(
-            _event_type=event_type,
-            _event_param=event_param,
-            _gold_reward=gold_reward,
-            _event_enemy=EnemyCharacter.initialize(
+            chapter_num=chapter_num,
+            day_num=day_num,
+            event_type=event_type,
+            event_param=event_param,
+            gold_reward=gold_reward,
+            event_enemy=EnemyCharacter.initialize(
                 enemies_config,
                 enemy_type
             ) if enemy_type else None
@@ -272,31 +277,31 @@ class Day:
 
     def simulate(self, player_character: Player_Character, meta_progression: Player_meta_progression):
 
-        match self._event_type:
+        match self.event_type:
             case Day.EventType.INCREASE_ATK:
-                player_character.modify_atk(self._event_param)
-                meta_progression.add_gold(self._gold_reward)
+                player_character.modify_atk(self.event_param)
+                meta_progression.add_gold(self.gold_reward)
             case Day.EventType.INCREASE_DEF:
-                player_character.modify_def(self._event_param)
-                meta_progression.add_gold(self._gold_reward)
+                player_character.modify_def(self.event_param)
+                meta_progression.add_gold(self.gold_reward)
             case Day.EventType.INCREASE_MAX_HP:
-                player_character.modify_max_hp(self._event_param)
-                meta_progression.add_gold(self._gold_reward)
+                player_character.modify_max_hp(self.event_param)
+                meta_progression.add_gold(self.gold_reward)
             case Day.EventType.RESTORE_HP:
-                player_character.modify_hp(self._event_param)
-                meta_progression.add_gold(self._gold_reward)
+                player_character.modify_hp(self.event_param)
+                meta_progression.add_gold(self.gold_reward)
             case Day.EventType.BATTLE:
-                if self._event_enemy is None:
+                if self.event_enemy is None:
                     raise ValueError("Battle event requires an enemy character.")
-                simulate_battle(player_character, self._event_enemy)
+                simulate_battle(player_character, self.event_enemy)
                 if(not player_character.is_dead()):
-                    meta_progression.add_gold(self._gold_reward)
+                    meta_progression.add_gold(self.gold_reward)
             case _:
                 raise ValueError(f"Unknown event type: {self._event_type}")
             
         Logger.add_log(
             Log_Actor.SIMULATION, Log_Granularity.DAY, Log_Action.SIMULATE,
-            f"Day simulated with event {self._event_type.value} and param {self._event_param}",
+            f"Day simulated with event {self.event_type.value} and param {self.event_param}",
             {
                 "day": asdict(self),
                 "player_character": asdict(player_character),
