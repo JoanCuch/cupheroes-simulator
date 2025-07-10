@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from logger import Logger, Log_Actor, Log_Granularity, Log_Action
 
 class ConfigSheets(Enum):
-    SPREADSHEET_NAME = "capybara_sim_data"
+    SPREADSHEET_NAME = "cupheroes_sim_data"
     PLAYER_SHEET_NAME = "PLAYER"
     ENEMIES_SHEET_NAME = "ENEMIES"
     CHAPTERS_SHEET_NAME = "CHAPTERS"

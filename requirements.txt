@@ -6,4 +6,4 @@ matplotlib
 plotly
 streamlit
 google-auth
-gspread
+oauth2client
