@@ -10,35 +10,35 @@ from logger import Logger, Log_Actor, Log_Granularity, Log_Action
 
 class ConfigSheets(Enum):
     SPREADSHEET_NAME = "cupheroes_sim_data"
-    PLAYER_SHEET_NAME = "PLAYER"
-    ENEMIES_SHEET_NAME = "ENEMIES"
+    GEAR_LEVELS_SHEET_NAMEE = "GEAR_LEVELS"
+    GEAR_MERGE_SHEET_NAME = "GEAR_MERGE"
     CHAPTERS_SHEET_NAME = "CHAPTERS"
 
 class ConfigKeys(Enum):
     STAT_NAME = "stat_name"
-    STAT_INITIAL_VALUE = "stat_initial_value"
-    STAT_META_BONUS_BASE = "stat_meta_bonus_base"
-    STAT_META_BONUS_EXP = "stat_meta_bonus_exp"
-    STAT_META_COST_BASE = "stat_meta_cost_base"
-    STAT_META_COST_EXP = "stat_meta_cost_exp"
-    STAT_ATK = "atk"
-    STAT_DEF = "def"
-    STAT_MAX_HP = "max_hp"
-    ENEMY_TYPE = "enemy_type"
-    ENEMY_ATK = "enemy_atk"
-    ENEMY_DEF = "enemy_def"
-    ENEMY_MAX_HP = "enemy_max_hp"
+    LEVEL = "level"
+    GOLD_COST = "gold_cost"
+    DESIGN_COST = "design_cost"
+    REQUIRED_RARITY = "required_rarity"
+    TARGET_RARITY = "target_rarity"
+    REQ1_RARITY = "req1_rarity"
+    REQ1_PIECE = "req1_piece"
+    REQ1_SET = "req1_set"
+    REQ2_RARITY = "req2_rarity"
+    REQ2_PIECE = "req2_piece"
+    REQ2_SET = "req2_set"
+    REQ3_RARITY = "req3_rarity"
+    REQ3_PIECE = "req3_piece"
+    REQ3_SET = "req3_set"
     CHAPTER_NUM = "chapter_num"
-    CHAPTER_DAY_NUM = "day_num"
-    CHAPTER_DAILY_EVENT = "daily_event"
-    CHAPTER_DAILY_EVENT_PARAM = "daily_event_param"
-    CHAPTER_DAILY_GOLD_REWARD = "gold_reward"
+    AVG_GEAR_LEVEL_REQUIRED = "avg_gear_level_required"
+    UNIQUE_GEAR_PIECES_REQUIRED = "unique_gear_pieces_required"
 
 @dataclass
 class Config:
-    _player_config_df: pd.DataFrame
-    _enemies_config_df: pd.DataFrame
-    _chapters_config_df: pd.DataFrame
+    gear_merge_df: pd.DataFrame
+    gear_levels_df: pd.DataFrame
+    chapters_df: pd.DataFrame
 
     @staticmethod
     def initialize() -> 'Config':
@@ -47,24 +47,24 @@ class Config:
 
         # Get the spreadsheet and turn into DataFrames
         sheet = client.open(ConfigSheets.SPREADSHEET_NAME.value)
-  
-        player_config_df = pd.DataFrame(sheet.worksheet(ConfigSheets.PLAYER_SHEET_NAME.value).get_all_records())
-        enemies_config_df = pd.DataFrame(sheet.worksheet(ConfigSheets.ENEMIES_SHEET_NAME.value).get_all_records())
-        chapters_config_df = pd.DataFrame(sheet.worksheet(ConfigSheets.CHAPTERS_SHEET_NAME.value).get_all_records())
+
+        gear_levels_df = pd.DataFrame(sheet.worksheet(ConfigSheets.GEAR_LEVELS_SHEET_NAMEE.value).get_all_records())
+        gear_merge_df = pd.DataFrame(sheet.worksheet(ConfigSheets.GEAR_MERGE_SHEET_NAME.value).get_all_records())
+        chapters_df = pd.DataFrame(sheet.worksheet(ConfigSheets.CHAPTERS_SHEET_NAME.value).get_all_records())
 
         config = Config(
-            _player_config_df=player_config_df,
-            _enemies_config_df=enemies_config_df,
-            _chapters_config_df=chapters_config_df
+            gear_levels_df=gear_levels_df,
+            gear_merge_df=gear_merge_df,
+            chapters_df=chapters_df
         )
 
         Logger.add_log(
             Log_Actor.SIMULATION, Log_Granularity.SIMULATION, Log_Action.INITIALIZE,
             "Configuration initialized from Google Sheets.",
             payload={
-                "player_config": player_config_df.to_dict(orient='records'),
-                "enemies_config": enemies_config_df.to_dict(orient='records'),
-                "chapters_config": chapters_config_df.to_dict(orient='records')
+                "gear_levels": gear_levels_df.to_dict(orient='records'),
+                "gear_merge": gear_merge_df.to_dict(orient='records'),
+                "chapters": chapters_df.to_dict(orient='records')
             }
         )
 
@@ -72,25 +72,18 @@ class Config:
     
         
     def get_total_chapters(self) -> int:
-        return self._chapters_config_df['chapter_num'].max()
+        return self.chapters_df['chapter_num'].max()
 
     def get_chapter_config(self, chapter_number: int) -> pd.DataFrame:
-        return self._chapters_config_df[self._chapters_config_df['chapter_num'] == chapter_number].copy()
+        return self.chapters_df[self.chapters_df['chapter_num'] == chapter_number].copy()
 
     def get_all_chapters_config(self) -> pd.DataFrame:
-        return self._chapters_config_df
+        return self.chapters_df
 
-    def get_player_config(self) -> pd.DataFrame:
-        return self._player_config_df
-    
-    def get_enemies_config(self) -> pd.DataFrame:
-        return self._enemies_config_df
-    
-    def reasign_config(self, new_player_config, new_enemies_config, new_chapters_config):
-        self._player_config_df = new_player_config
-        self._enemies_config_df = new_enemies_config
-        self._chapters_config_df = new_chapters_config
-
+    def reasign_config(self, new_gear_levels_config, new_gear_merge_config, new_chapters_config):
+        self.gear_levels_df = new_gear_levels_config
+        self.gear_merge_df = new_gear_merge_config
+        self.chapters_df = new_chapters_config
 
 def connect_to_API() -> gspread.Client:
     scopes = [

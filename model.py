@@ -3,81 +3,230 @@ from typing import List, Dict, Any, Optional
 import pandas as pd
 import config_import as config_import
 from config_import import ConfigKeys, Config
-from enum import Enum
+from enum import Enum, IntEnum
+
 from logger import Logger, Log_Actor, Log_Granularity, Log_Action
 
-@dataclass
-class Meta_stat:
-    name: str = ""
-    initial_value: int = 0
-    meta_bonus_base: int = 0
-    meta_bonus_exp: int = 0
-    meta_cost_base: int = 0
-    meta_cost_exp: int = 0
-    level: int = 0
+from dataclasses import dataclass, field
+from typing import List, Dict, Optional
 
-    def get_value(self) -> int:
-        return self.initial_value + self.meta_bonus_exp * self.level
+class Gear_sets(Enum):
+    COLLECTOR = "collector_set"
+    DEFENDER = "defender_set"
+    ROGUE = "rogue_set"
+    TACTICIAN = "tactician_set"
+    WARRIOR = "warrior_set"
+    DEFAULT = "default_set"
+
+class Gear_pieces(Enum):
+    HELMET = "helmet"
+    CHEST = "chest"
+    RING_ONE = "ring_one"
+    RING_TWO = "ring_two"
+    BOOTS = "boots"
+    WEAPON = "weapon"
+    DEFAULT = "default"
+
+class Gear_rarity(IntEnum):
+    COMMON = 1
+    UNCOMMON = 2
+    RARE = 3
+    EPIC = 4
+    EPIC2 = 5
+    LEGENDARY = 6
+
+    def __str__(self):
+        return self.name.lower()
     
-    def get_bonus_increment(self) -> int:
-        return self.initial_value + self.meta_bonus_exp * (self.level + 1) - (self.initial_value + self.meta_bonus_exp * self.level)
+@dataclass
+class MergeRequirement:
+    piece_requirement: Gear_pieces           
+    rarity_requirement: Gear_rarity      
+    set_requirement: Gear_sets      
 
-    def get_cost(self) -> int:
-        return self.meta_cost_base + self.meta_cost_exp * self.level
+@dataclass
+class Gear:
+    level: int
+    set: Gear_sets
+    piece: Gear_pieces
+    max_rarity: Gear_rarity
+    rarity_list: Dict[Gear_rarity, int]
+    merge_rules: Dict[Gear_rarity, List[MergeRequirement]]
+    level_up_rules: pd.DataFrame
 
-    def level_up(self):
-        self.level += 1
+    @staticmethod
+    def initialize(gear_set: Gear_sets, gear_piece: Gear_pieces, gear_levels_df, gear_merge_df) -> 'Gear':
+        
+        level = 0
+        set = gear_set
+        piece = gear_piece
+        max_rarity = Gear_rarity.COMMON
+        rarity_list = {rarity: 0 for rarity in Gear_rarity}
+        merge_rules = {}
+        level_up_rules = {}
+        level_up_rules = gear_levels_df
 
-    def get_level(self) -> int:
-        return self.level
+        new_gear = Gear(
+            level=level,
+            set=set,
+            piece=piece,
+            max_rarity=max_rarity,
+            rarity_list=rarity_list,
+            merge_rules=merge_rules,
+            level_up_rules=level_up_rules
+        )
+        new_gear.merge_rules = new_gear.set_merge_rules(gear_merge_df)
+
+        return new_gear
+
+    def set_merge_rules(self, gear_merge_df: pd.DataFrame) -> Dict[Gear_rarity, List[MergeRequirement]]:
+        rules: Dict[Gear_rarity, List[MergeRequirement]] = {}
+
+        for _, row in gear_merge_df.iterrows():
+            target_rarity = Gear_rarity[row[ConfigKeys.TARGET_RARITY.value].upper()]
+            requirements: List[MergeRequirement] = []
+
+            for i in range(1, 4):
+                rarity_key = f"req{i}_rarity"
+                piece_key = f"req{i}_piece"
+                set_key = f"req{i}_set"
+
+                if pd.isna(row[rarity_key]) or row[rarity_key] == "":
+                    # Skip if rarity is NaN or empty, thus, if the is no requirement
+                    continue
+
+                piece_requirement = self.piece if row[piece_key] == "SAME_PIECE" else Gear_pieces.DEFAULT
+                set_requirement = self.set if row[set_key] == "SAME_SET" else Gear_sets.DEFAULT
+
+                requirements.append(MergeRequirement(
+                    piece_requirement=piece_requirement,
+                    rarity_requirement=Gear_rarity[row[rarity_key].upper()],
+                    set_requirement=set_requirement
+                ))
+
+            rules[target_rarity] = requirements
+
+        return rules
+
+    def merge(self, target_rarity: Gear_rarity, gear_inventory: List['Gear']) -> bool:
+
+        # Keep track of affected rarity requirements to restore if merge fails
+        affected_requirements = []
+
+        # Iterate through the merge requirements for the target rarity
+        for requirement in self.merge_rules[target_rarity]:
+            # Check if the required gear exists in the inventory
+            matching_gear = next(
+            (gear for gear in gear_inventory
+             if gear.piece == requirement.piece_requirement
+             and gear.rarity_list.get(requirement.rarity_requirement, 0) > 0
+             and gear.set == requirement.set_requirement),
+            None
+            )
+
+            # If no matching gear is found, restore the affected requirements and return False
+            if not matching_gear:
+                for gear, rarity in affected_requirements:
+                    gear.rarity_list[rarity] += 1
+                return False
+
+            # If there is a matching, Decrease the count of the matching gear's rarity, and store it in case we need to restore
+            matching_gear.rarity_list[requirement.rarity_requirement] -= 1
+            affected_requirements.append((matching_gear, requirement.rarity_requirement))
+
+        # If all requirements are met, add the gear
+        # Increase the count of the target rarity in the rarity list
+        self.rarity_list[target_rarity] += 1
+
+        # Update the max_rarity based on the highest rarity with a count greater than 0
+        self.max_rarity = max(
+            (rarity for rarity, count in self.rarity_list.items() if count > 0),
+            default=Gear_rarity.COMMON
+        )
+
+        return True
+
+    def level_up(self, meta_progression) -> bool:
+        expected_level = self.level + 1
+        required_gold = self.level_up_rules.loc[expected_level, ConfigKeys.GOLD_COST.value]
+        required_designs = self.level_up_rules.loc[expected_level, ConfigKeys.DESIGN_COST.value]
+        required_rarity = int(pd.to_numeric(self.level_up_rules.loc[expected_level, ConfigKeys.REQUIRED_RARITY.value], errors='coerce'))
+
+        # Check if the meta progression has enough resources to level up the gear
+        # Check if the required rarity is available
+        has_required_rarity = any(
+            rarity >= required_rarity and count > 0 
+            for rarity, count in self.rarity_list.items()
+        )
+
+        if (
+            meta_progression.gold >= required_gold and
+            meta_progression.designs[self.piece] >= required_designs and
+            has_required_rarity
+        ):
+            # Deduct the required resources
+            meta_progression.gold -= required_gold
+            meta_progression.designs[self.piece] -= required_designs
+
+            # Level up the gear
+            self.level = expected_level
+
+            Logger.add_log(
+            Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.LEVEL_UP,
+            f"Gear leveled up to level {self.level}",
+            {"gear": asdict(self), "meta_progression": asdict(meta_progression)}
+            )
+
+            return True
+
+        # If requirements are not met, log the failure
+        Logger.add_log(
+            Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.LEVEL_UP,
+            f"Failed to level up gear to level {expected_level}",
+            {
+            "gear": asdict(self),
+            "meta_progression": asdict(meta_progression),
+            "required_gold": required_gold,
+            "required_designs": required_designs,
+            "required_rarity": required_rarity
+            }
+        )
+
+        return False
+
 
 @dataclass
 class Player_meta_progression:
-    stat_atk: Meta_stat
-    stat_def: Meta_stat
-    stat_max_hp: Meta_stat
     
-    gold: int = 0
-    chapter_level: int = 0
+    gold: int
+    chapter_level: int
+    gear_inventory: List[Gear]
+    designs: Dict[Gear_pieces, int]
+    equipped_gear: Dict[Gear_pieces, Gear]
+    merge_rules: Dict[Gear_rarity, List[MergeRequirement]] = field(default_factory=dict)
 
     @staticmethod
-    def initialize(player_config_df) -> 'Player_meta_progression':
-        stat_atk = Meta_stat(
-            name=get_config_value(player_config_df, ConfigKeys.STAT_NAME, ConfigKeys.STAT_ATK, ConfigKeys.STAT_NAME),
-            initial_value=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_ATK, ConfigKeys.STAT_INITIAL_VALUE),
-            meta_bonus_base=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_ATK, ConfigKeys.STAT_META_BONUS_BASE),
-            meta_bonus_exp=get_config_value(player_config_df,ConfigKeys.STAT_NAME, ConfigKeys.STAT_ATK, ConfigKeys.STAT_META_BONUS_EXP),
-            meta_cost_base=int(get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_ATK, ConfigKeys.STAT_META_COST_BASE)),
-            meta_cost_exp=int(get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_ATK, ConfigKeys.STAT_META_COST_EXP)),
-            level=0
-        )
-        stat_def = Meta_stat(
-            name=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_DEF, ConfigKeys.STAT_NAME),
-            initial_value=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_DEF, ConfigKeys.STAT_INITIAL_VALUE),
-            meta_bonus_base=get_config_value(player_config_df,ConfigKeys.STAT_NAME, ConfigKeys.STAT_DEF, ConfigKeys.STAT_META_BONUS_BASE),
-            meta_bonus_exp=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_DEF, ConfigKeys.STAT_META_BONUS_EXP),
-            meta_cost_base=int(get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_DEF, ConfigKeys.STAT_META_COST_BASE)),
-            meta_cost_exp=int(get_config_value(player_config_df,ConfigKeys.STAT_NAME, ConfigKeys.STAT_DEF, ConfigKeys.STAT_META_COST_EXP)),
-            level=0
-        )
-        stat_max_hp = Meta_stat(
-            name=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_NAME),
-            initial_value=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_INITIAL_VALUE),
-            meta_bonus_base=get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_META_BONUS_BASE),
-            meta_bonus_exp=int(get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_META_BONUS_EXP)),
-            meta_cost_base=int(get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_META_COST_BASE)),
-            meta_cost_exp=int(get_config_value(player_config_df, ConfigKeys.STAT_NAME,ConfigKeys.STAT_MAX_HP, ConfigKeys.STAT_META_COST_EXP)),
-            level=0
-        )       
+    def initialize(gear_levels_config: pd.DataFrame, gear_merge_config: pd.DataFrame) -> 'Player_meta_progression':
+
         gold = 0
-        chapter = 1
+        chapter_level = 1
+        designs = {s: 0 for s in Gear_pieces}
+        equipped_gear = {}
+        merge_rules = {}
+        gear_inventory = [
+                Gear.initialize(gear_set, gear_piece, gear_levels_config, gear_merge_config)
+                for gear_set in Gear_sets
+                for gear_piece in Gear_pieces
+                if gear_set != Gear_sets.DEFAULT and gear_piece != Gear_pieces.DEFAULT
+            ]
 
         new_meta = Player_meta_progression(
-            stat_atk=stat_atk,
-            stat_def=stat_def,
-            stat_max_hp=stat_max_hp,
             gold=gold,
-            chapter_level=chapter
+            chapter_level=chapter_level,
+            gear_inventory=gear_inventory,
+            designs=designs,
+            equipped_gear=equipped_gear,
+            merge_rules=merge_rules
         )
 
         Logger.add_log(
@@ -88,44 +237,45 @@ class Player_meta_progression:
 
         return new_meta
 
-    def add_gold(self, value:int):
-        self.gold+= value
-        return
-    
-    def get_cheapest_stat(self) -> Meta_stat:
-        stats = [self.stat_atk, self.stat_def, self.stat_max_hp]
-        return min(stats, key=lambda stat: stat.get_cost())
     
     def simulate(self):
-    #get cheapest stat to upgrade
-        stat = self.get_cheapest_stat()
+        
+        # Obtain free chests
+
+        # Open Chests
+
+        # Get new gear
+
+        # Merge Gear
+
+        for gear in self.gear_inventory:
+            for rarity in Gear_rarity:
+                if rarity != Gear_rarity.COMMON:
+                    success = gear.merge(rarity, self.gear_inventory)
+                    if success:
+                        Logger.add_log(
+                            Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.MERGE,
+                            f"Successfully merged gear to rarity {rarity}",
+                            {"gear": asdict(gear), "rarity": str(rarity)}
+                        )
+
+
+        # Sort gear inventory by highest level and try to level up
+        sorted_gear_inventory = sorted(self.gear_inventory, key=lambda g: g.level, reverse=True)
+        for gear in sorted_gear_inventory:
+            gear.level_up(self)
+
+        # Equip Gear
+
+        # Purchase
+
         Logger.add_log(
             Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.SIMULATE,
-            f"Simulating meta progression: cheapest stat to upgrade is {stat.name} with cost {stat.get_cost()} and bonus increment {stat.get_bonus_increment()}",
-            {
-                "cheapest_stat": stat.name,
-                "cost": stat.get_cost(),
-                "bonus_increment": stat.get_bonus_increment(),
-                "gold_available": self.gold
-            }
+            "Meta progression simulation completed",
+            {"gold": self.gold, "chapter_level": self.chapter_level}
         )
-
-        if self.gold >= stat.get_cost():
-            self.gold -= stat.get_cost()
-            stat.level_up()
-            Logger.add_log(
-                Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.SIMULATE,
-                f"Upgraded {stat.name} to level {stat.get_level()}",
-                {
-                    "stat_name": stat.name,
-                    "new_level": stat.get_level(),
-                    "new_value": stat.get_value(),
-                    "remaining_gold": self.gold
-                }
-            )
-
         return
-
+    
     def chapter_level_up(self):
         self.chapter_level += 1
         Logger.add_log(
@@ -135,6 +285,7 @@ class Player_meta_progression:
         )
         return
 
+"""
 @dataclass
 class Player_Character:
     stat_atk: int
@@ -310,7 +461,7 @@ class Day:
         )
 
         return
-
+"""
 
 @dataclass
 class Chapter:
@@ -451,18 +602,18 @@ def model(main_config: Config):
     
     Logger.clear_logs()
 
-    player_config = main_config.get_player_config()
-    enemies_config = main_config.get_enemies_config()
-    total_chapters = main_config.get_total_chapters()
+    gear_levels_config = main_config.gear_levels_df
+    gear_merge_config = main_config.gear_merge_df
+    chapters_config = main_config.chapters_df
     
     Logger.add_log(
         Log_Actor.SIMULATION, Log_Granularity.SIMULATION, Log_Action.INITIALIZE,
         "Model initialized configs: player and enemies",
-        {"player_config": player_config,
-         "enemies_config": enemies_config,
-         "total_chapters": total_chapters})
+        {"gear_levels_config": gear_levels_config,
+         "gear_merge_config": gear_merge_config,
+         "chapters_config": chapters_config})
 
-    meta_progression = Player_meta_progression.initialize(player_config)
+    meta_progression = Player_meta_progression.initialize(gear_levels_config, gear_merge_config)
 
     rounds_done = 0
     max_allowed_rounds = 5 #TODO: Turn into config value

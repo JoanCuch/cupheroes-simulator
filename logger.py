@@ -13,6 +13,7 @@ class Log_Granularity (Enum):
     DAY = "day"
     BATTLE = "battle"
     TURN = "turn"
+    
 
 class Log_Action(Enum) :
     INITIALIZE = "initialize"
@@ -22,6 +23,8 @@ class Log_Action(Enum) :
     ENEMY_ATTACK = "enemy_attack"
     PLAYER_DEFEATED = "player_defeated"
     ENEMY_DEFEATED = "enemy_defeated"
+    MERGE = "merge"
+    LEVEL_UP = "level_up"
 
 class Logger:
     _logs = []

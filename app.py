@@ -47,14 +47,8 @@ def show_log_table(log_df: pd.DataFrame):
     if selected_action:
         filtered_df = filtered_df[filtered_df["action"].isin(selected_action)]
 
-    # Eliminar columnes 'index' i 'payload' si existeixen
-    #filtered_df = filtered_df.drop(columns=["index", "payload"], errors="ignore")
-
     # Mostrar taula final
     st.dataframe(filtered_df[["actor", "granularity","action","message"]], hide_index=True, use_container_width=True ,height=700)
-
-    """"
-    where day and simulate, get payload -> day and player_character"""
 
     daily_graph_df = filtered_df[
         (filtered_df["granularity"] == "day") & (filtered_df["action"] == "simulate")
@@ -98,9 +92,9 @@ config = Config.initialize()
 
 # Display the config to allow editing
 st.subheader("Config Editor")
-edited_player_config = st.data_editor(config.get_player_config())
-edited_enemies_config = st.data_editor(config.get_enemies_config())
-edited_chapters_config = st.data_editor(config.get_all_chapters_config())
+edited_gear_levels_config = st.data_editor(config.gear_levels_df)
+edited_gear_merge_config = st.data_editor(config.gear_merge_df)
+edited_chapters_config = st.data_editor(config.chapters_df)
 
 # Simulation
 if "simulation_done" not in st.session_state:
@@ -118,6 +112,3 @@ if st.session_state.simulation_done:
     #st.write(log_df)
     #plot_test()
     plot_turn_stats()
-    
-    
-
