@@ -29,10 +29,10 @@ class Gear_pieces(Enum):
 
 class Gear_rarity(IntEnum):
     COMMON = 1
-    UNCOMMON = 2
-    RARE = 3
-    EPIC = 4
-    EPIC2 = 5
+    RARE = 2
+    EPIC = 3
+    EPIC2 = 4
+    MYTHICAL = 5
     LEGENDARY = 6
 
     def __str__(self):
@@ -170,27 +170,23 @@ class Gear:
 
             # Level up the gear
             self.level = expected_level
-
             Logger.add_log(
             Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.LEVEL_UP,
-            f"Gear leveled up to level {self.level}",
-            {"gear": asdict(self), "meta_progression": asdict(meta_progression)}
-            )
-
-            return True
-
-        # If requirements are not met, log the failure
-        Logger.add_log(
-            Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.LEVEL_UP,
-            f"Failed to level up gear to level {expected_level}",
+            f"Level up gear of {self.piece.value} and {self.set.value} and {self.max_rarity}to {expected_level}",
             {
-            "gear": asdict(self),
+            "level": self.level,
+            "set": self.set.value,
+            "piece": self.piece.value,
+            "max_rarity": str(self.max_rarity),
             "meta_progression": asdict(meta_progression),
             "required_gold": required_gold,
             "required_designs": required_designs,
             "required_rarity": required_rarity
             }
         )
+
+            return True
+        
 
         return False
 
@@ -463,6 +459,24 @@ class Day:
         return
 """
 
+
+@dataclass
+class Chapter:
+
+    chapters_config: pd.DataFrame
+
+    @staticmethod
+    def initialize(chapters_config: pd.DataFrame) -> 'Chapter':
+        chapter = Chapter(
+            chapters_config=chapters_config
+        )
+        return chapter
+
+    def simulate(self) -> bool:
+        return True
+
+
+"""
 @dataclass
 class Chapter:
 
@@ -526,12 +540,17 @@ class Chapter:
 
         return victory
 
+"""
+
+
+
 def get_config_value(config_df, row: ConfigKeys, row_key: ConfigKeys, column_key: ConfigKeys) -> Any:
     return config_df.loc[config_df[row.value] == row_key.value, column_key.value].iloc[0]
 
 def get_config_value_str_row(config_df, row: ConfigKeys, row_key: str, column_key: ConfigKeys) -> Any:
     return config_df.loc[config_df[row.value] == row_key, column_key.value].iloc[0]
 
+"""
 def simulate_battle(player_character: Player_Character, enemy: EnemyCharacter):
 
     Logger.add_log(
@@ -592,6 +611,7 @@ def simulate_battle(player_character: Player_Character, enemy: EnemyCharacter):
             break
 
     return
+    """
 
 def model(main_config: Config):
 
@@ -616,7 +636,8 @@ def model(main_config: Config):
     meta_progression = Player_meta_progression.initialize(gear_levels_config, gear_merge_config)
 
     rounds_done = 0
-    max_allowed_rounds = 5 #TODO: Turn into config value
+    max_allowed_rounds = 40 #TODO: Turn into config value
+    total_chapters = main_config.get_total_chapters()
 
     # Chapters Sequence Loop
     while(rounds_done<=max_allowed_rounds and meta_progression.chapter_level<=total_chapters):
@@ -632,7 +653,7 @@ def model(main_config: Config):
         # Chapter Simulation
         chapter_level = meta_progression.chapter_level
         chapter_config = main_config.get_chapter_config(chapter_level)
-        chapter = Chapter.initialize(chapter_config, meta_progression, enemies_config)
+        chapter = Chapter.initialize(chapter_config)
         victory_bool = chapter.simulate()
 
         # Chapter Simulation

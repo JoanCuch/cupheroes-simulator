@@ -105,10 +105,12 @@ if st.button("Run Simulation"):
     model(config)
     st.session_state.simulation_done = True
 
+
 # Show results
 if st.session_state.simulation_done:
-    #log_df = Logger.get_logs_as_dataframe()
+    log_df = Logger.get_logs_as_dataframe()
     #show_log_table(log_df)
     #st.write(log_df)
     #plot_test()
-    plot_turn_stats()
+    ##plot_turn_stats()
+    st.dataframe(log_df)
