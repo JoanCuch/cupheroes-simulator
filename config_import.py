@@ -35,7 +35,13 @@ class ConfigKeys(Enum):
     UNIQUE_GEAR_PIECES_REQUIRED = "unique_gear_pieces_required"
     CHEST_NAME = "chest_name"
     FREE_DAILY = "free_daily"
-
+    WIN_REWARD_GOLD = "win_reward_gold"
+    WIN_REWARD_DESIGNS = "win_reward_designs"
+    WIN_REWARD_GACHA = "win_reward_gacha"
+    LOSE_REWARD_GOLD = "lose_reward_gold"
+    LOSE_REWARD_DESIGNS = "lose_reward_designs" 
+    LOSE_REWARD_GACHA = "lose_reward_gacha"
+    
 @dataclass
 class Config:
     gear_merge_df: pd.DataFrame

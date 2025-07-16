@@ -27,6 +27,10 @@ class Log_Action(Enum) :
     LEVEL_UP = "level_up"
     OPEN_GACHA = "open_gacha"
     ADD_GEAR = "add_gear"
+    WIN_CHAPTER = "win_chapter"
+    LOSE_CHAPTER = "lose_chapter"
+    ADD_DESIGNS = "add_designs" 
+    EQUIP_GEAR = "equip_gear"
 
 class Logger:
     _logs = []

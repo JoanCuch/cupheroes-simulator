@@ -20,12 +20,12 @@ class Gear_sets(Enum):
     DEFAULT = "default_set"
 
 class Gear_pieces(Enum):
+    WEAPON = "weapon    "
+    RING = "ring"
+    GLOVES = "gloves"
     HELMET = "helmet"
-    CHEST = "chest"
-    RING_ONE = "ring_one"
-    RING_TWO = "ring_two"
+    ARMOR = "armor"
     BOOTS = "boots"
-    WEAPON = "weapon"
     DEFAULT = "default"
 
 class Gear_rarity(IntEnum):
@@ -264,6 +264,10 @@ class Player_meta_progression:
         
         if matching_gear:
             matching_gear.rarity_list[rarity] += 1
+
+            if matching_gear.level == 0: #in case it is the first time this gear is added
+                matching_gear.level = 1
+
             Logger.add_log(
                 Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.ADD_GEAR,
                 f"Added gear of {piece.value} and {set.value} to rarity {rarity}",
@@ -277,13 +281,26 @@ class Player_meta_progression:
             raise ValueError(f"Gear with piece {piece.value} and set {set.value} not found in inventory.")
         return
     
+    def add_designs(self, amount: int):
+        chosen_piece = random.choice(list(self.designs.keys()))
+        self.designs[chosen_piece] += amount
+
+        Logger.add_log(
+            Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.ADD_DESIGNS,
+            f"Added {amount} designs to {chosen_piece.value}",
+            {
+                "piece": chosen_piece.value,
+                "amount": amount,
+                "total_designs": self.designs[chosen_piece]
+            }
+        )
+
     def simulate(self):
-        
+
         # Obtain free chests
 
         # Open Chests
 
-        # Get new gear
 
         # Merge Gear
 
@@ -300,13 +317,33 @@ class Player_meta_progression:
 
         # Equip Gear
 
+        for piece_type in Gear_pieces:
+            if piece_type == Gear_pieces.DEFAULT:
+                continue
+
+            highest_level_gear = max(
+                (gear for gear in self.gear_inventory if gear.piece == piece_type),
+                key=lambda g: g.level
+            )
+
+            if highest_level_gear.level == 0:
+                continue
+
+            prev_equipped = self.equipped_gear.get(piece_type)
+            if prev_equipped is None or highest_level_gear.level > prev_equipped.level:
+                self.equipped_gear[piece_type] = highest_level_gear
+                Logger.add_log(
+                    Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.EQUIP_GEAR,
+                    f"Equipped gear of {piece_type.value} with set {highest_level_gear.set.value} at level {highest_level_gear.level}",
+                    {
+                        "piece": piece_type.value,
+                        "set": highest_level_gear.set.value,
+                        "level": highest_level_gear.level
+                    }
+                )
+
         # Purchase
 
-        Logger.add_log(
-            Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.SIMULATE,
-            "Meta progression simulation completed",
-            {"gold": self.gold, "chapter_level": self.chapter_level}
-        )
         return
     
     def chapter_level_up(self):
@@ -318,337 +355,7 @@ class Player_meta_progression:
         )
         return
 
-"""
-@dataclass
-class Player_Character:
-    stat_atk: int
-    stat_def: int
-    stat_hp: int
-    stat_max_hp: int
 
-    def modify_atk(self, value: int):
-        self.stat_atk += value
-
-    def modify_def(self, value: int):
-        self.stat_def += value
-
-    def modify_hp(self, value: int):
-        self.stat_hp = min(self.stat_hp + value, self.stat_max_hp)
-
-    def modify_max_hp(self, value: int):
-         self.stat_max_hp+=value
-
-    def is_dead(self) -> bool:
-        return self.stat_hp <= 0
-    
-    @staticmethod
-    def initialize(stat_atk: int, stat_def:int, stat_max_hp:int) -> 'Player_Character':
-        new_character =Player_Character(
-            stat_atk=stat_atk,
-            stat_def=stat_def,
-            stat_hp = stat_max_hp,
-            stat_max_hp=stat_max_hp
-        )
-        Logger.add_log(Log_Actor.SIMULATION, Log_Granularity.SIMULATION, Log_Action.INITIALIZE,
-            "Player character initialized",
-            {
-                "player_character": asdict(new_character),
-            }
-        )
-
-        return new_character
-
-@dataclass
-class EnemyCharacter:
-
-    class Enemy_Types (Enum):
-        SLIME = "slime"
-        SKELETON = "skeleton"
-        BOSS = "boss"
-   
-    type: Enemy_Types
-    stat_atk: int
-    stat_def: int
-    stat_max_hp: int
-    stat_hp: int
-
-    def modify_atk(self, value: int):
-        self.stat_atk += value
-
-    def modify_def(self, value: int):
-        self.stat_def += value
-
-    def modify_hp(self, value: int):
-        self.stat_hp = min(self.stat_hp + value, self.stat_max_hp)
-
-    def is_dead(self) -> bool:
-        return self.stat_hp <= 0
-    
-    @staticmethod
-    def initialize(enemies_config, enemy_type: Enemy_Types)-> 'EnemyCharacter':
-
-        new_enemy = EnemyCharacter(
-            type = enemy_type,
-            stat_atk= get_config_value_str_row(enemies_config, ConfigKeys.ENEMY_TYPE, enemy_type.value, ConfigKeys.ENEMY_ATK),
-            stat_def= get_config_value_str_row(enemies_config, ConfigKeys.ENEMY_TYPE, enemy_type.value, ConfigKeys.ENEMY_DEF),
-            stat_max_hp= get_config_value_str_row(enemies_config, ConfigKeys.ENEMY_TYPE, enemy_type.value, ConfigKeys.ENEMY_MAX_HP),
-            stat_hp= get_config_value_str_row(enemies_config, ConfigKeys.ENEMY_TYPE, enemy_type.value, ConfigKeys.ENEMY_MAX_HP)
-        )
-
-        Logger.add_log(Log_Actor.SIMULATION, Log_Granularity.SIMULATION, Log_Action.INITIALIZE,
-            "Enemy character initialized",
-            {
-                "enemy_character": asdict(new_enemy),
-            }
-        )
-
-        return new_enemy
-
-@dataclass
-class Day:
-
-    class EventType(Enum):
-        INCREASE_ATK = "increase_atk"
-        INCREASE_DEF = "increase_def"
-        INCREASE_MAX_HP = "increase_max_hp"
-        RESTORE_HP = "restore_hp"
-        BATTLE = "battle"    
-    chapter_num: int
-    day_num: int
-    event_type: EventType
-    event_param: Any
-    gold_reward: int
-    event_enemy: Optional[EnemyCharacter]
-
-    @staticmethod
-    def initialize(day_config, enemies_config) -> 'Day':
-        event_name = day_config[ConfigKeys.CHAPTER_DAILY_EVENT.value]
-        event_type = Day.EventType(event_name)
-        event_param = day_config[ConfigKeys.CHAPTER_DAILY_EVENT_PARAM.value]
-        gold_reward = int(day_config[ConfigKeys.CHAPTER_DAILY_GOLD_REWARD.value]) 
-        chapter_num = int(day_config[ConfigKeys.CHAPTER_NUM.value])
-        day_num = int(day_config[ConfigKeys.CHAPTER_DAY_NUM.value])
-
-        # Convert event_param to int for numeric operations
-        if event_type in [Day.EventType.INCREASE_ATK, Day.EventType.INCREASE_DEF, 
-                      Day.EventType.INCREASE_MAX_HP, Day.EventType.RESTORE_HP]:
-            event_param = int(event_param)
-
-        enemy_type = None
-        if event_type == Day.EventType.BATTLE:
-            enemy_type = EnemyCharacter.Enemy_Types(event_param) 
-
-        new_day =  Day(
-            chapter_num=chapter_num,
-            day_num=day_num,
-            event_type=event_type,
-            event_param=event_param,
-            gold_reward=gold_reward,
-            event_enemy=EnemyCharacter.initialize(
-                enemies_config,
-                enemy_type
-            ) if enemy_type else None
-        )   
-
-        Logger.add_log(Log_Actor.SIMULATION, Log_Granularity.SIMULATION, Log_Action.INITIALIZE,
-            "Day initialized",
-            {
-                "day": asdict(new_day)  
-            }
-        )
-
-        return new_day
-
-    def simulate(self, player_character: Player_Character, meta_progression: Player_meta_progression):
-
-        match self.event_type:
-            case Day.EventType.INCREASE_ATK:
-                player_character.modify_atk(self.event_param)
-                meta_progression.add_gold(self.gold_reward)
-            case Day.EventType.INCREASE_DEF:
-                player_character.modify_def(self.event_param)
-                meta_progression.add_gold(self.gold_reward)
-            case Day.EventType.INCREASE_MAX_HP:
-                player_character.modify_max_hp(self.event_param)
-                meta_progression.add_gold(self.gold_reward)
-            case Day.EventType.RESTORE_HP:
-                player_character.modify_hp(self.event_param)
-                meta_progression.add_gold(self.gold_reward)
-            case Day.EventType.BATTLE:
-                if self.event_enemy is None:
-                    raise ValueError("Battle event requires an enemy character.")
-                simulate_battle(player_character, self.event_enemy)
-                if(not player_character.is_dead()):
-                    meta_progression.add_gold(self.gold_reward)
-            case _:
-                raise ValueError(f"Unknown event type: {self._event_type}")
-            
-        Logger.add_log(
-            Log_Actor.SIMULATION, Log_Granularity.DAY, Log_Action.SIMULATE,
-            f"Day simulated with event {self.event_type.value} and param {self.event_param}",
-            {
-                "day": asdict(self),
-                "player_character": asdict(player_character),
-                "meta_progression": asdict(meta_progression),
-            }
-        )
-
-        return
-"""
-
-
-@dataclass
-class Chapter:
-
-    chapters_config: pd.DataFrame
-
-    @staticmethod
-    def initialize(chapters_config: pd.DataFrame) -> 'Chapter':
-        chapter = Chapter(
-            chapters_config=chapters_config
-        )
-        return chapter
-
-    def simulate(self) -> bool:
-        return True
-
-
-"""
-@dataclass
-class Chapter:
-
-    days: List[Day]
-    player_character: Player_Character
-    meta_progression: Player_meta_progression
-
-    @staticmethod
-    def initialize(chapter_config_df, meta_progression: Player_meta_progression, enemies_config_df) -> 'Chapter':
-
-        #Instantiate the player characteer
-        player_character = Player_Character.initialize(
-            meta_progression.stat_atk.get_value(),
-            meta_progression.stat_def.get_value(),
-            meta_progression.stat_max_hp.get_value()
-            )    
-        
-        #Instantiate the day list with all the events
-        days: List[Day] = []
-        for index,day_config in chapter_config_df.iterrows():
-            new_day = Day.initialize(day_config, enemies_config_df)
-            days.append(new_day)
-    
-        #Create the new chapter
-        chapter = Chapter(
-            days,
-            player_character,
-            meta_progression)
-        
-        Logger.add_log(Log_Actor.SIMULATION, Log_Granularity.CHAPTER, Log_Action.INITIALIZE,
-            f"Chapter initialized with {len(days)} days",
-            {
-                "chapter_level": meta_progression.chapter_level,
-                "player_character": asdict(player_character),
-                "days_count": len(days),
-                "days": [asdict(day) for day in days]
-            }
-        )
-        return chapter
-
-
-    def simulate(self) -> bool:
-
-        victory = True
-
-        for day in self.days:
-            day.simulate(self.player_character, self.meta_progression)
-            if(self.player_character.is_dead()):
-                victory = False
-                break
-
-        Logger.add_log(
-            Log_Actor.SIMULATION, Log_Granularity.CHAPTER, Log_Action.SIMULATE,
-            f"Chapter {self.meta_progression.chapter_level} simulation completed with status: {'Victory' if victory else 'Defeat'}",
-            {
-                "chapter_level": self.meta_progression.chapter_level,
-                "player_character": asdict(self.player_character),
-                "victory": victory
-            }
-        )
-
-        return victory
-
-"""
-
-
-
-def get_config_value(config_df, row: ConfigKeys, row_key: ConfigKeys, column_key: ConfigKeys) -> Any:
-    return config_df.loc[config_df[row.value] == row_key.value, column_key.value].iloc[0]
-
-def get_config_value_str_row(config_df, row: ConfigKeys, row_key: str, column_key: ConfigKeys) -> Any:
-    return config_df.loc[config_df[row.value] == row_key, column_key.value].iloc[0]
-
-"""
-def simulate_battle(player_character: Player_Character, enemy: EnemyCharacter):
-
-    Logger.add_log(
-        Log_Actor.GAME,
-        Log_Granularity.BATTLE,
-        Log_Action.INITIALIZE, 
-        f"Battle initialized between player and {enemy.type.value}",
-        {
-            "player_character": asdict(player_character),
-            "enemy": asdict(enemy)
-        }
-    )
-
-    while not player_character.is_dead() and not enemy.is_dead():
-        # Player attacks enemy
-        damage_to_enemy = max(0, player_character.stat_atk - enemy.stat_def)
-        enemy.modify_hp(-damage_to_enemy)
-
-        Logger.add_log(
-            Log_Actor.GAME, Log_Granularity.TURN, Log_Action.PLAYER_ATTACK,
-            f"Player attacks {enemy.type.value} for {damage_to_enemy} damage. Enemy HP: {enemy.stat_hp}/{enemy.stat_max_hp}",
-            {"player_character": asdict(player_character),
-             "enemy": asdict(enemy), 
-             "damage": damage_to_enemy})
-
-        if enemy.is_dead():
-            Logger.add_log(
-                Log_Actor.GAME, Log_Granularity.BATTLE, Log_Action.ENEMY_DEFEATED,
-                f"Enemy {enemy.type.value} defeated!",
-                {
-                    "player_character": asdict(player_character),
-                    "enemy": asdict(enemy),
-                }
-            )
-            break
-
-        # Enemy attacks player
-        damage_to_player = max(0, enemy.stat_atk - player_character.stat_def)
-        player_character.modify_hp(-damage_to_player)
-
-        Logger.add_log(
-            Log_Actor.GAME, Log_Granularity.TURN, Log_Action.ENEMY_ATTACK,
-            f"{enemy.type.value} attacks player for {damage_to_player} damage. Player HP: {player_character.stat_hp}/{player_character.stat_max_hp}",
-            {"player_character": asdict(player_character),
-             "enemy": asdict(enemy), 
-             "damage": damage_to_player})
-
-        if player_character.is_dead():
-
-            Logger.add_log(
-                Log_Actor.GAME, Log_Granularity.BATTLE, Log_Action.PLAYER_DEFEATED,
-                "Player defeated!",
-                {
-                    "player_character": asdict(player_character),
-                    "enemy": asdict(enemy)
-                }
-            )
-            break
-
-    return
-    """
 @dataclass
 class Gacha_system:
 
@@ -698,6 +405,99 @@ class Gacha_system:
 
         meta.add_gear(new_gear_piece, new_gear_set, new_gear_rarity)
         return
+
+@dataclass
+class Chapter:
+
+    chapters_config: pd.DataFrame
+
+    @staticmethod
+    def initialize(chapters_config: pd.DataFrame) -> 'Chapter':
+        chapter = Chapter(
+            chapters_config=chapters_config
+        )
+        return chapter
+
+    def simulate(self, chapter_num: int, meta: Player_meta_progression, gacha_system: Gacha_system) -> bool:
+
+        chapter_config = self.chapters_config.loc[self.chapters_config[ConfigKeys.CHAPTER_NUM.value] == chapter_num]
+
+        victory = False
+
+        # Simulate the battle
+
+        avg_gear_level_required = chapter_config[ConfigKeys.AVG_GEAR_LEVEL_REQUIRED.value].iloc[0]
+        unique_gear_pieces_required = chapter_config[ConfigKeys.UNIQUE_GEAR_PIECES_REQUIRED.value].iloc[0]
+        total_required_points = avg_gear_level_required * unique_gear_pieces_required
+
+        total_player_points = 0
+
+        for piece in meta.equipped_gear.values():
+            if piece.level > 0:
+                total_player_points += piece.level
+
+        victory = total_player_points >= total_required_points
+
+        # Give rewards based on result
+        if(victory):
+            victory = True
+            win_reward_gold = chapter_config[ConfigKeys.WIN_REWARD_GOLD.value].iloc[0]
+            win_reward_designs = chapter_config[ConfigKeys.WIN_REWARD_DESIGNS.value].iloc[0]
+            win_reward_gacha = chapter_config[ConfigKeys.WIN_REWARD_GACHA.value].iloc[0]
+
+            Logger.add_log(
+                Log_Actor.SIMULATION, Log_Granularity.CHAPTER, Log_Action.WIN_CHAPTER,
+                f"Chapter {chapter_num} victory: awarded {win_reward_gold} gold, {win_reward_designs} designs, and opened {win_reward_gacha} chest",
+                {
+                    "chapter_num": chapter_num,
+                    "victory": victory,
+                    "player_points": total_player_points,
+                    "required_points": total_required_points,
+                    "gold_awarded": win_reward_gold,
+                    "designs_awarded": win_reward_designs,
+                    "gacha_chest_opened": win_reward_gacha
+                }
+            )
+
+            meta.gold += win_reward_gold
+            meta.add_designs(win_reward_designs)
+            gacha_system.open_chest(meta, win_reward_gacha)     
+            
+        else:
+            victory = False
+            lose_reward_gold = chapter_config[ConfigKeys.LOSE_REWARD_GOLD.value].iloc[0]
+            lose_reward_designs = chapter_config[ConfigKeys.LOSE_REWARD_DESIGNS.value].iloc[0]
+            lose_reward_gacha = chapter_config[ConfigKeys.LOSE_REWARD_GACHA.value].iloc[0]
+
+            Logger.add_log(
+                Log_Actor.SIMULATION, Log_Granularity.CHAPTER, Log_Action.LOSE_CHAPTER,
+                f"Chapter {chapter_num} defeat: awarded {lose_reward_gold} gold, {lose_reward_designs} designs, and opened {lose_reward_gacha} chest",
+                {
+                    "chapter_num": chapter_num,
+                    "victory": victory,
+                    "player_points": total_player_points,
+                    "required_points": total_required_points,
+                    "gold_awarded": lose_reward_gold,
+                    "designs_awarded": lose_reward_designs,
+                    "gacha_chest_opened": lose_reward_gacha
+                }
+            )
+
+            meta.gold += lose_reward_gold
+            meta.add_designs(lose_reward_designs)
+            gacha_system.open_chest(meta, lose_reward_gacha)
+
+        return victory
+
+
+def get_config_value(config_df, row: ConfigKeys, row_key: ConfigKeys, column_key: ConfigKeys) -> Any:
+    return config_df.loc[config_df[row.value] == row_key.value, column_key.value].iloc[0]
+
+def get_config_value_str_row(config_df, row: ConfigKeys, row_key: str, column_key: ConfigKeys) -> Any:
+    return config_df.loc[config_df[row.value] == row_key, column_key.value].iloc[0]
+
+
+
 
 
 @dataclass
@@ -758,7 +558,8 @@ class model:
             chapter_level = self.meta_progression.chapter_level
             chapter_config = main_config.get_chapter_config(chapter_level)
             chapter = Chapter.initialize(chapter_config)
-            victory_bool = chapter.simulate()
+
+            victory_bool = chapter.simulate(chapter_level, self.meta_progression, self.gacha_system)
 
             # Chapter Simulation
             Logger.add_log(
@@ -770,9 +571,9 @@ class model:
             )
 
             #fake progression
-            self.meta_progression.gold += 1000000000000
-            self.meta_progression.designs[Gear_pieces.HELMET] += 100000000
-            self.meta_progression.add_gear(Gear_pieces.HELMET, Gear_sets.COLLECTOR, Gear_rarity.COMMON)
+            #self.meta_progression.gold += 1000000000000
+            #self.meta_progression.designs[Gear_pieces.HELMET] += 100000000
+            #self.meta_progression.add_gear(Gear_pieces.HELMET, Gear_sets.COLLECTOR, Gear_rarity.COMMON)
             #self.gacha_system.open_chest(self.meta_progression, "rare")
             #self.gacha_system.open_chest(self.meta_progression, "epic")
 
