@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Any, Optional
+import random
 import pandas as pd
 import config_import as config_import
 from config_import import ConfigKeys, Config
@@ -120,7 +121,7 @@ class Gear:
             (gear for gear in gear_inventory
              if gear.piece == requirement.piece_requirement
              and gear.rarity_list.get(requirement.rarity_requirement, 0) > 0
-             and gear.set == requirement.set_requirement),
+             and (gear.set == requirement.set_requirement or requirement.set_requirement == Gear_sets.DEFAULT)),
             None
             )
 
@@ -144,51 +145,65 @@ class Gear:
             default=Gear_rarity.COMMON
         )
 
-        return True
-
-    def level_up(self, meta_progression) -> bool:
-        expected_level = self.level + 1
-        required_gold = self.level_up_rules.loc[expected_level, ConfigKeys.GOLD_COST.value]
-        required_designs = self.level_up_rules.loc[expected_level, ConfigKeys.DESIGN_COST.value]
-        required_rarity = int(pd.to_numeric(self.level_up_rules.loc[expected_level, ConfigKeys.REQUIRED_RARITY.value], errors='coerce'))
-
-        # Check if the meta progression has enough resources to level up the gear
-        # Check if the required rarity is available
-        has_required_rarity = any(
-            rarity >= required_rarity and count > 0 
-            for rarity, count in self.rarity_list.items()
-        )
-
-        if (
-            meta_progression.gold >= required_gold and
-            meta_progression.designs[self.piece] >= required_designs and
-            has_required_rarity
-        ):
-            # Deduct the required resources
-            meta_progression.gold -= required_gold
-            meta_progression.designs[self.piece] -= required_designs
-
-            # Level up the gear
-            self.level = expected_level
-            Logger.add_log(
-            Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.LEVEL_UP,
-            f"Level up gear of {self.piece.value} and {self.set.value} and {self.max_rarity}to {expected_level}",
+        Logger.add_log(
+            Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.MERGE,
+            f"Successfully merged gear of {self.piece.value} and {self.set.value} to {target_rarity}",
             {
-            "level": self.level,
-            "set": self.set.value,
-            "piece": self.piece.value,
-            "max_rarity": str(self.max_rarity),
-            "meta_progression": asdict(meta_progression),
-            "required_gold": required_gold,
-            "required_designs": required_designs,
-            "required_rarity": required_rarity
+                "piece": self.piece.value,
+                "set": self.set.value,
+                "target_rarity": str(target_rarity),
+                "max_rarity": str(self.max_rarity),
+                "rarity_list": {str(rarity): count for rarity, count in self.rarity_list.items()},
+                "affected_requirements": [(gear.piece.value, str(rarity)) for gear, rarity in affected_requirements]
             }
         )
 
-            return True
-        
+        return True
 
-        return False
+    def level_up(self, meta_progression) -> bool:
+
+        successful_level_up = True
+
+        while (successful_level_up):
+
+            expected_level = self.level + 1
+            required_gold = self.level_up_rules.loc[expected_level, ConfigKeys.GOLD_COST.value]
+            required_designs = self.level_up_rules.loc[expected_level, ConfigKeys.DESIGN_COST.value]
+            required_rarity = int(pd.to_numeric(self.level_up_rules.loc[expected_level, ConfigKeys.REQUIRED_RARITY.value], errors='coerce'))
+
+            has_required_rarity = any(
+                rarity >= required_rarity and count > 0 
+                for rarity, count in self.rarity_list.items()
+            )
+
+            if (
+                meta_progression.gold >= required_gold and
+                meta_progression.designs[self.piece] >= required_designs and
+                has_required_rarity
+            ):
+                # Deduct the required resources
+                meta_progression.gold -= required_gold
+                meta_progression.designs[self.piece] -= required_designs
+
+                # Level up the gear
+                self.level = expected_level
+                Logger.add_log(
+                    Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.LEVEL_UP,
+                    f"Level up gear of {self.piece.value} and {self.set.value} and {self.max_rarity} to level {expected_level}",
+                    {
+                    "level": self.level,
+                    "set": self.set.value,
+                    "piece": self.piece.value,
+                    "max_rarity": str(self.max_rarity),
+                    "required_gold": required_gold,
+                    "required_designs": required_designs,
+                    "required_rarity": required_rarity
+                    }
+                )
+            else:
+                successful_level_up = False
+
+        return successful_level_up
 
 
 @dataclass
@@ -233,6 +248,18 @@ class Player_meta_progression:
 
         return new_meta
 
+    def add_gear(self, piece: Gear_pieces, set: Gear_sets, rarity: Gear_rarity):
+
+        matching_gear = next(
+            (gear for gear in self.gear_inventory if gear.piece == piece and gear.set == set),
+            None
+        )
+        
+        if matching_gear:
+            matching_gear.rarity_list[rarity] += 1
+        else:
+            raise ValueError(f"Gear with piece {piece.value} and set {set.value} not found in inventory.")
+        return
     
     def simulate(self):
         
@@ -248,12 +275,6 @@ class Player_meta_progression:
             for rarity in Gear_rarity:
                 if rarity != Gear_rarity.COMMON:
                     success = gear.merge(rarity, self.gear_inventory)
-                    if success:
-                        Logger.add_log(
-                            Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.MERGE,
-                            f"Successfully merged gear to rarity {rarity}",
-                            {"gear": asdict(gear), "rarity": str(rarity)}
-                        )
 
 
         # Sort gear inventory by highest level and try to level up
@@ -612,64 +633,122 @@ def simulate_battle(player_character: Player_Character, enemy: EnemyCharacter):
 
     return
     """
+@dataclass
+class Gacha_system:
 
-def model(main_config: Config):
+    config_df: pd.DataFrame
 
-    Logger.add_log(
-        Log_Actor.SIMULATION, Log_Granularity.SIMULATION, Log_Action.INITIALIZE,
-        "Model initialized",{})
+    @staticmethod
+    def initialize(config_df: pd.DataFrame) -> 'Gacha_system':
 
-    
-    Logger.clear_logs()
+        return Gacha_system(config_df = config_df)
 
-    gear_levels_config = main_config.gear_levels_df
-    gear_merge_config = main_config.gear_merge_df
-    chapters_config = main_config.chapters_df
-    
-    Logger.add_log(
-        Log_Actor.SIMULATION, Log_Granularity.SIMULATION, Log_Action.INITIALIZE,
-        "Model initialized configs: player and enemies",
-        {"gear_levels_config": gear_levels_config,
-         "gear_merge_config": gear_merge_config,
-         "chapters_config": chapters_config})
+    def open_chest(self, meta: Player_meta_progression, chest_name: str):
 
-    meta_progression = Player_meta_progression.initialize(gear_levels_config, gear_merge_config)
+        row = self.config_df.loc[self.config_df['chest_name'] == chest_name].iloc[0]
 
-    rounds_done = 0
-    max_allowed_rounds = 40 #TODO: Turn into config value
-    total_chapters = main_config.get_total_chapters()
+        rarities: list[Gear_rarity] = []
+        weights: list[float] = []
 
-    # Chapters Sequence Loop
-    while(rounds_done<=max_allowed_rounds and meta_progression.chapter_level<=total_chapters):
-        rounds_done+=1
+        for rarity in Gear_rarity:
+            rarity_column = rarity.name.lower()
+            if rarity_column in self.config_df.columns:
+                weight = row[rarity_column]
+                if not pd.isna(weight) and weight > 0:
+                    rarities.append(rarity)
+                    weights.append(float(str(weight).replace(',', '.')))
 
-        Logger.add_log(
-            Log_Actor.SIMULATION, Log_Granularity.CHAPTER, Log_Action.SIMULATE,
-            f"Starting simulation for chapter {meta_progression.chapter_level} in round {rounds_done}",
-            {"chapter_level": meta_progression.chapter_level,
-             "rounds_done": rounds_done,
-             "meta_progression": asdict(meta_progression)})
+        new_gear_rarity = random.choices(rarities, weights=weights, k=1)[0]
+        new_gear_piece = random.choice([p for p in Gear_pieces if p != Gear_pieces.DEFAULT])
+        new_gear_set = random.choice([s for s in Gear_sets if s != Gear_sets.DEFAULT])
+
+        meta.add_gear(new_gear_piece, new_gear_set, new_gear_rarity)
+        return
+
+
+@dataclass
+class model:
+
+    meta_progression: Player_meta_progression
+    gacha_system: Gacha_system
+
+    rounds_done: int
+    max_allowed_rounds: int #value to block infinite loops in any while-true situation
+    total_chapters: int
+
+    @staticmethod
+    def initialize(main_config: Config) -> 'model':
+
+        rounds_done = 0
+        max_allowed_rounds = 40  #value to block infinite loops in any while-true situation
+        total_chapters = main_config.get_total_chapters()
+
+        gear_levels_config = main_config.gear_levels_df
+        gear_merge_config = main_config.gear_merge_df
+        chapters_config = main_config.chapters_df
+        gacha_config = main_config.gacha_df
         
-        # Chapter Simulation
-        chapter_level = meta_progression.chapter_level
-        chapter_config = main_config.get_chapter_config(chapter_level)
-        chapter = Chapter.initialize(chapter_config)
-        victory_bool = chapter.simulate()
+        meta_progression = Player_meta_progression.initialize(gear_levels_config, gear_merge_config)
+        gacha_system = Gacha_system.initialize(gacha_config)
 
-        # Chapter Simulation
         Logger.add_log(
+            Log_Actor.SIMULATION, Log_Granularity.SIMULATION, Log_Action.INITIALIZE,
+            "Model initialized configs: player and enemies",
+            {"gear_levels_config": gear_levels_config,
+             "gear_merge_config": gear_merge_config,
+             "chapters_config": chapters_config,
+             "gacha_config": gacha_config})
+
+        return model(
+            meta_progression=meta_progression,
+            gacha_system=gacha_system,
+            rounds_done=rounds_done,
+            max_allowed_rounds=max_allowed_rounds,
+            total_chapters=total_chapters
+            )
+    
+    def simulate(self, main_config: Config):
+
+        while(self.rounds_done<=self.max_allowed_rounds
+              and self.meta_progression.chapter_level<=self.total_chapters):
+            self.rounds_done+=1
+
+            Logger.add_log(
             Log_Actor.SIMULATION, Log_Granularity.CHAPTER, Log_Action.SIMULATE,
-            f"Chapter {chapter_level} simulation in round {rounds_done} completed with status: {'Victory' if victory_bool else 'Defeat'}",
+            f"Starting simulation for chapter {self.meta_progression.chapter_level} in round {self.rounds_done}",
+            {"chapter_level": self.meta_progression.chapter_level,
+             "rounds_done": self.rounds_done,
+             "meta_progression": asdict(self.meta_progression)})
+
+            # Chapter Simulation
+            chapter_level = self.meta_progression.chapter_level
+            chapter_config = main_config.get_chapter_config(chapter_level)
+            chapter = Chapter.initialize(chapter_config)
+            victory_bool = chapter.simulate()
+
+            # Chapter Simulation
+            Logger.add_log(
+                Log_Actor.SIMULATION, Log_Granularity.CHAPTER, Log_Action.SIMULATE,
+            f"Chapter {chapter_level} simulation in round {self.rounds_done} completed with status: {'Victory' if victory_bool else 'Defeat'}",
             {"chapter_level": chapter_level,
              "victory": victory_bool,
-             "meta_progression": asdict(meta_progression)}
-        )
+             "meta_progression": asdict(self.meta_progression)}
+            )
 
-        # Meta Progression Simulation
-        meta_progression.simulate()
+            #fake progression
+            self.meta_progression.gold += 1000
+            self.meta_progression.designs[Gear_pieces.HELMET] += 1000
+            self.meta_progression.add_gear(Gear_pieces.HELMET, Gear_sets.COLLECTOR, Gear_rarity.COMMON)
+            self.meta_progression.add_gear(Gear_pieces.HELMET, Gear_sets.COLLECTOR, Gear_rarity.COMMON)
+            self.meta_progression.add_gear(Gear_pieces.HELMET, Gear_sets.COLLECTOR, Gear_rarity.COMMON)
+            self.meta_progression.add_gear(Gear_pieces.HELMET, Gear_sets.COLLECTOR, Gear_rarity.COMMON)
 
-        if victory_bool:
-            meta_progression.chapter_level += 1 
-            
 
-    return
+
+            # Meta Progression Simulation
+            self.meta_progression.simulate()
+
+            if victory_bool:
+                self.meta_progression.chapter_level += 1
+
+        return

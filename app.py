@@ -101,8 +101,16 @@ if "simulation_done" not in st.session_state:
     st.session_state.simulation_done = False
 
 if st.button("Run Simulation"):
+
+    config.reasign_config(
+    new_gear_levels_config=edited_gear_levels_config,
+    new_gear_merge_config=edited_gear_merge_config,
+    new_chapters_config=edited_chapters_config
+    )
+
     Logger.clear_logs()
-    model(config)
+    model_instance = model.initialize(config)
+    model_instance.simulate(main_config=config)
     st.session_state.simulation_done = True
 
 

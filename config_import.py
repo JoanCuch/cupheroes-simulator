@@ -33,12 +33,15 @@ class ConfigKeys(Enum):
     CHAPTER_NUM = "chapter_num"
     AVG_GEAR_LEVEL_REQUIRED = "avg_gear_level_required"
     UNIQUE_GEAR_PIECES_REQUIRED = "unique_gear_pieces_required"
+    CHEST_NAME = "chest_name"
+    FREE_DAILY = "free_daily"
 
 @dataclass
 class Config:
     gear_merge_df: pd.DataFrame
     gear_levels_df: pd.DataFrame
     chapters_df: pd.DataFrame
+    gacha_df: pd.DataFrame
 
     @staticmethod
     def initialize() -> 'Config':
@@ -51,11 +54,13 @@ class Config:
         gear_levels_df = pd.DataFrame(sheet.worksheet(ConfigSheets.GEAR_LEVELS_SHEET_NAMEE.value).get_all_records())
         gear_merge_df = pd.DataFrame(sheet.worksheet(ConfigSheets.GEAR_MERGE_SHEET_NAME.value).get_all_records())
         chapters_df = pd.DataFrame(sheet.worksheet(ConfigSheets.CHAPTERS_SHEET_NAME.value).get_all_records())
+        gacha_df = pd.DataFrame(sheet.worksheet("GACHA").get_all_records())
 
         config = Config(
             gear_levels_df=gear_levels_df,
             gear_merge_df=gear_merge_df,
-            chapters_df=chapters_df
+            chapters_df=chapters_df,
+            gacha_df=gacha_df
         )
 
         Logger.add_log(
@@ -64,7 +69,8 @@ class Config:
             payload={
                 "gear_levels": gear_levels_df.to_dict(orient='records'),
                 "gear_merge": gear_merge_df.to_dict(orient='records'),
-                "chapters": chapters_df.to_dict(orient='records')
+                "chapters": chapters_df.to_dict(orient='records'),
+                "gacha": gacha_df.to_dict(orient='records')
             }
         )
 
