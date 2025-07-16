@@ -167,9 +167,16 @@ class Gear:
         while (successful_level_up):
 
             expected_level = self.level + 1
-            required_gold = self.level_up_rules.loc[expected_level, ConfigKeys.GOLD_COST.value]
-            required_designs = self.level_up_rules.loc[expected_level, ConfigKeys.DESIGN_COST.value]
-            required_rarity = int(pd.to_numeric(self.level_up_rules.loc[expected_level, ConfigKeys.REQUIRED_RARITY.value], errors='coerce'))
+            # Trobar la fila de configuració per a aquest nivell via l’índex
+            if expected_level not in self.level_up_rules.index:
+                successful_level_up = False
+                break
+
+            row_level = self.level_up_rules.loc[expected_level]
+
+            required_gold = row_level[ConfigKeys.GOLD_COST.value]
+            required_designs = row_level[ConfigKeys.DESIGN_COST.value]
+            required_rarity = row_level[ConfigKeys.REQUIRED_RARITY.value]
 
             has_required_rarity = any(
                 rarity >= required_rarity and count > 0 
@@ -257,6 +264,15 @@ class Player_meta_progression:
         
         if matching_gear:
             matching_gear.rarity_list[rarity] += 1
+            Logger.add_log(
+                Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.ADD_GEAR,
+                f"Added gear of {piece.value} and {set.value} to rarity {rarity}",
+                {
+                    "piece": piece.value,
+                    "set": set.value,
+                    "rarity": rarity.name
+                }
+            )
         else:
             raise ValueError(f"Gear with piece {piece.value} and set {set.value} not found in inventory.")
         return
@@ -653,14 +669,32 @@ class Gacha_system:
         for rarity in Gear_rarity:
             rarity_column = rarity.name.lower()
             if rarity_column in self.config_df.columns:
-                weight = row[rarity_column]
-                if not pd.isna(weight) and weight > 0:
+                raw_weight = row[rarity_column]
+                if pd.isna(raw_weight):
+                    continue
+                # Convert to float, allowing comma as decimal
+                try:
+                    weight_f = float(str(raw_weight).replace(',', '.'))
+                except ValueError:
+                    continue
+                if weight_f > 0:
                     rarities.append(rarity)
-                    weights.append(float(str(weight).replace(',', '.')))
+                    weights.append(weight_f)
 
         new_gear_rarity = random.choices(rarities, weights=weights, k=1)[0]
         new_gear_piece = random.choice([p for p in Gear_pieces if p != Gear_pieces.DEFAULT])
         new_gear_set = random.choice([s for s in Gear_sets if s != Gear_sets.DEFAULT])
+
+        Logger.add_log(
+            Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.OPEN_GACHA,
+            f"Opened {chest_name} chest and received gear piece {new_gear_piece.value}, set {new_gear_set.value}, rarity {new_gear_rarity}",
+            {
+                "chest_name": chest_name,
+                "new_gear_piece": new_gear_piece.value,
+                "new_gear_set": new_gear_set.value,
+                "new_gear_rarity": str(new_gear_rarity)
+            }
+            )
 
         meta.add_gear(new_gear_piece, new_gear_set, new_gear_rarity)
         return
@@ -736,12 +770,11 @@ class model:
             )
 
             #fake progression
-            self.meta_progression.gold += 1000
-            self.meta_progression.designs[Gear_pieces.HELMET] += 1000
+            self.meta_progression.gold += 1000000000000
+            self.meta_progression.designs[Gear_pieces.HELMET] += 100000000
             self.meta_progression.add_gear(Gear_pieces.HELMET, Gear_sets.COLLECTOR, Gear_rarity.COMMON)
-            self.meta_progression.add_gear(Gear_pieces.HELMET, Gear_sets.COLLECTOR, Gear_rarity.COMMON)
-            self.meta_progression.add_gear(Gear_pieces.HELMET, Gear_sets.COLLECTOR, Gear_rarity.COMMON)
-            self.meta_progression.add_gear(Gear_pieces.HELMET, Gear_sets.COLLECTOR, Gear_rarity.COMMON)
+            #self.gacha_system.open_chest(self.meta_progression, "rare")
+            #self.gacha_system.open_chest(self.meta_progression, "epic")
 
 
 

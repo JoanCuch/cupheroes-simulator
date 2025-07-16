@@ -25,6 +25,8 @@ class Log_Action(Enum) :
     ENEMY_DEFEATED = "enemy_defeated"
     MERGE = "merge"
     LEVEL_UP = "level_up"
+    OPEN_GACHA = "open_gacha"
+    ADD_GEAR = "add_gear"
 
 class Logger:
     _logs = []
