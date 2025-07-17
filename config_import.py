@@ -6,7 +6,7 @@ import json
 from typing import Optional
 from enum import Enum
 from dataclasses import dataclass, field
-from logger import Logger, Log_Actor, Log_Granularity, Log_Action
+from logger import Logger, Log_Action
 
 class ConfigSheets(Enum):
     SPREADSHEET_NAME = "cupheroes_sim_data"
@@ -41,13 +41,20 @@ class ConfigKeys(Enum):
     LOSE_REWARD_GOLD = "lose_reward_gold"
     LOSE_REWARD_DESIGNS = "lose_reward_designs" 
     LOSE_REWARD_GACHA = "lose_reward_gacha"
-    
+    TIMER_AMOUNT = "timer_amount"
+    TIMER_ACTION = "timer_action"
+    SESSIONS_PER_DAY = "sessions_per_day"
+    AVG_SESSION_LENGTH = "avg_session_length"
+    PLAY_CHAPTER = "play_chapter"
+    META_PROGRESSION = "meta_progression"
+
 @dataclass
 class Config:
     gear_merge_df: pd.DataFrame
     gear_levels_df: pd.DataFrame
     chapters_df: pd.DataFrame
     gacha_df: pd.DataFrame
+    timers_df: pd.DataFrame
 
     @staticmethod
     def initialize() -> 'Config':
@@ -61,23 +68,14 @@ class Config:
         gear_merge_df = pd.DataFrame(sheet.worksheet(ConfigSheets.GEAR_MERGE_SHEET_NAME.value).get_all_records())
         chapters_df = pd.DataFrame(sheet.worksheet(ConfigSheets.CHAPTERS_SHEET_NAME.value).get_all_records())
         gacha_df = pd.DataFrame(sheet.worksheet("GACHA").get_all_records())
+        timers_df = pd.DataFrame(sheet.worksheet("TIMERS").get_all_records())
 
         config = Config(
             gear_levels_df=gear_levels_df,
             gear_merge_df=gear_merge_df,
             chapters_df=chapters_df,
-            gacha_df=gacha_df
-        )
-
-        Logger.add_log(
-            Log_Actor.SIMULATION, Log_Granularity.SIMULATION, Log_Action.INITIALIZE,
-            "Configuration initialized from Google Sheets.",
-            payload={
-                "gear_levels": gear_levels_df.to_dict(orient='records'),
-                "gear_merge": gear_merge_df.to_dict(orient='records'),
-                "chapters": chapters_df.to_dict(orient='records'),
-                "gacha": gacha_df.to_dict(orient='records')
-            }
+            gacha_df=gacha_df,
+            timers_df=timers_df
         )
 
         return config

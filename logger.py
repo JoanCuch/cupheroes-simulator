@@ -1,20 +1,6 @@
 from enum import Enum
 import copy
 
-class Log_Actor (Enum):
-    PLAYER=  "player"
-    GAME= "game"
-    SIMULATION= "simulation"
-
-class Log_Granularity (Enum):
-    SIMULATION = "simulation"
-    META= "meta"
-    CHAPTER = "chapter"
-    DAY = "day"
-    BATTLE = "battle"
-    TURN = "turn"
-    
-
 class Log_Action(Enum) :
     INITIALIZE = "initialize"
     SIMULATE = "simulate"
@@ -31,16 +17,16 @@ class Log_Action(Enum) :
     LOSE_CHAPTER = "lose_chapter"
     ADD_DESIGNS = "add_designs" 
     EQUIP_GEAR = "equip_gear"
+    DAILY_FREE_GACHA = "daily_free_gacha"
 
 class Logger:
     _logs = []
 
     @classmethod
-    def add_log(cls, actor: Log_Actor, granularity: Log_Granularity, action: Log_Action, message: str, payload: dict):
+    def add_log(cls, action: Log_Action, time: int,message: str, payload: dict):
         log_entry = {
-            "actor": actor.value,
-            "granularity": granularity.value,
             "action": action.value,
+            "time": time,
             "message": message,
             "payload": copy.deepcopy(payload) if payload else {},
         }

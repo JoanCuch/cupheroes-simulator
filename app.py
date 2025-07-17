@@ -4,7 +4,7 @@ from config_import import Config, ConfigKeys
 from model import model, Logger
 import matplotlib.pyplot as plt
 from typing import Any, Dict, cast
-from logger import Logger, Log_Action, Log_Actor, Log_Granularity
+from logger import Logger, Log_Action
 
 
 def show_log_table(log_df: pd.DataFrame):
@@ -58,7 +58,6 @@ def show_log_table(log_df: pd.DataFrame):
 def plot_test():
     log_df = Logger.get_logs_as_dataframe()
     #log_df = Logger.get_flattened_logs_df()
-    log_df = log_df[log_df["granularity"] == Log_Granularity.DAY.value]
     log_df = pd.json_normalize(log_df.to_dict(orient="records"), sep=".")
 
     st.dataframe(log_df)
@@ -69,7 +68,6 @@ def plot_turn_stats():
 
     # Filter logs
     log_df = Logger.get_logs_as_dataframe()
-    log_df = log_df[log_df["granularity"] == Log_Granularity.DAY.value]
     day_logs_df = pd.json_normalize(log_df.to_dict(orient="records"), sep=".")
 
     # Create a graph for each chapter
@@ -95,6 +93,8 @@ st.subheader("Config Editor")
 edited_gear_levels_config = st.data_editor(config.gear_levels_df)
 edited_gear_merge_config = st.data_editor(config.gear_merge_df)
 edited_chapters_config = st.data_editor(config.chapters_df)
+edited_gacha_config = st.data_editor(config.gacha_df)
+edited_timers_config = st.data_editor(config.timers_df)
 
 # Simulation
 if "simulation_done" not in st.session_state:

@@ -6,7 +6,7 @@ import config_import as config_import
 from config_import import ConfigKeys, Config
 from enum import Enum, IntEnum
 
-from logger import Logger, Log_Actor, Log_Granularity, Log_Action
+from logger import Logger, Log_Action
 
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
@@ -43,7 +43,56 @@ class Gear_rarity(IntEnum):
 class MergeRequirement:
     piece_requirement: Gear_pieces           
     rarity_requirement: Gear_rarity      
-    set_requirement: Gear_sets      
+    set_requirement: Gear_sets 
+
+@dataclass
+class timer:
+    total_time: int
+    session_time: int
+
+    play_chapter_time: int
+    meta_progression_time: int
+
+    @staticmethod
+    def initialize(timer_config_df: pd.DataFrame) -> 'timer':
+        current_total_time = 0
+        current_session_time = 0
+        play_chapter_time = timer_config_df.loc[timer_config_df[ConfigKeys.TIMER_ACTION.value] == ConfigKeys.PLAY_CHAPTER.value, ConfigKeys.TIMER_AMOUNT.value].iloc[0]
+        meta_progression_time = timer_config_df.loc[timer_config_df[ConfigKeys.TIMER_ACTION.value] == ConfigKeys.META_PROGRESSION.value, ConfigKeys.TIMER_AMOUNT.value].iloc[0]
+        return timer(total_time=current_total_time, session_time=current_session_time, play_chapter_time=play_chapter_time, meta_progression_time=meta_progression_time)
+
+    def increment(self, minutes: int):
+        self.total_time += minutes
+        self.session_time += minutes
+        return
+    
+    def increment_play_chapter(self):
+        self.total_time += self.play_chapter_time
+        self.session_time += self.play_chapter_time
+        return
+    
+    def increment_meta_progression(self):
+        self.total_time += self.meta_progression_time
+        self.session_time += self.meta_progression_time
+        return
+    
+    def current_day(self) -> int:
+        return self.total_time // 1440
+    
+    def complete_day(self):
+        minutes_to_complete = 1440 - (self.total_time % 1440) + 1 # +1 to ensure we get to a new day
+        self.increment(minutes_to_complete)
+        return
+    
+    def current_time(self) -> int:
+        return self.total_time 
+
+    def current_session_time(self) -> int:
+        return self.session_time
+
+    def new_session(self) -> None:
+        self.session_time = 0
+        return    
 
 @dataclass
 class Gear:
@@ -54,10 +103,11 @@ class Gear:
     rarity_list: Dict[Gear_rarity, int]
     merge_rules: Dict[Gear_rarity, List[MergeRequirement]]
     level_up_rules: pd.DataFrame
+    time: timer
 
     @staticmethod
-    def initialize(gear_set: Gear_sets, gear_piece: Gear_pieces, gear_levels_df, gear_merge_df) -> 'Gear':
-        
+    def initialize(gear_set: Gear_sets, gear_piece: Gear_pieces, gear_levels_df: pd.DataFrame, gear_merge_df: pd.DataFrame, time: timer) -> 'Gear':
+
         level = 0
         set = gear_set
         piece = gear_piece
@@ -74,7 +124,8 @@ class Gear:
             max_rarity=max_rarity,
             rarity_list=rarity_list,
             merge_rules=merge_rules,
-            level_up_rules=level_up_rules
+            level_up_rules=level_up_rules,
+            time=time
         )
         new_gear.merge_rules = new_gear.set_merge_rules(gear_merge_df)
 
@@ -146,7 +197,8 @@ class Gear:
         )
 
         Logger.add_log(
-            Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.MERGE,
+            Log_Action.MERGE,
+            self.time.current_time(),   
             f"Successfully merged gear of {self.piece.value} and {self.set.value} to {target_rarity}",
             {
                 "piece": self.piece.value,
@@ -195,7 +247,8 @@ class Gear:
                 # Level up the gear
                 self.level = expected_level
                 Logger.add_log(
-                    Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.LEVEL_UP,
+                    Log_Action.LEVEL_UP,
+                    self.time.current_time(),
                     f"Level up gear of {self.piece.value} and {self.set.value} and {self.max_rarity} to level {expected_level}",
                     {
                     "level": self.level,
@@ -217,22 +270,25 @@ class Gear:
 class Player_meta_progression:
     
     gold: int
-    chapter_level: int
     gear_inventory: List[Gear]
     designs: Dict[Gear_pieces, int]
     equipped_gear: Dict[Gear_pieces, Gear]
+    time: timer
+    chapter_level: int
     merge_rules: Dict[Gear_rarity, List[MergeRequirement]] = field(default_factory=dict)
+   
 
     @staticmethod
-    def initialize(gear_levels_config: pd.DataFrame, gear_merge_config: pd.DataFrame) -> 'Player_meta_progression':
+    def initialize(gear_levels_config: pd.DataFrame, gear_merge_config: pd.DataFrame, time: timer) -> 'Player_meta_progression':
 
         gold = 0
         chapter_level = 1
+
         designs = {s: 0 for s in Gear_pieces}
         equipped_gear = {}
         merge_rules = {}
         gear_inventory = [
-                Gear.initialize(gear_set, gear_piece, gear_levels_config, gear_merge_config)
+                Gear.initialize(gear_set, gear_piece, gear_levels_config, gear_merge_config, time)
                 for gear_set in Gear_sets
                 for gear_piece in Gear_pieces
                 if gear_set != Gear_sets.DEFAULT and gear_piece != Gear_pieces.DEFAULT
@@ -244,11 +300,13 @@ class Player_meta_progression:
             gear_inventory=gear_inventory,
             designs=designs,
             equipped_gear=equipped_gear,
-            merge_rules=merge_rules
+            merge_rules=merge_rules,
+            time=time
         )
 
         Logger.add_log(
-            Log_Actor.SIMULATION, Log_Granularity.SIMULATION, Log_Action.INITIALIZE,
+            Log_Action.INITIALIZE,
+            time.current_time(),
             "Meta progression initialized",
             {"meta_progression": asdict(new_meta) }
             )       
@@ -269,7 +327,8 @@ class Player_meta_progression:
                 matching_gear.level = 1
 
             Logger.add_log(
-                Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.ADD_GEAR,
+                Log_Action.ADD_GEAR,
+                self.time.current_time(),
                 f"Added gear of {piece.value} and {set.value} to rarity {rarity}",
                 {
                     "piece": piece.value,
@@ -286,7 +345,8 @@ class Player_meta_progression:
         self.designs[chosen_piece] += amount
 
         Logger.add_log(
-            Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.ADD_DESIGNS,
+            Log_Action.ADD_DESIGNS,
+            self.time.current_time(),
             f"Added {amount} designs to {chosen_piece.value}",
             {
                 "piece": chosen_piece.value,
@@ -297,18 +357,14 @@ class Player_meta_progression:
 
     def simulate(self):
 
-        # Obtain free chests
-
-        # Open Chests
-
+        # Pass Time
+        self.time.increment_meta_progression()
 
         # Merge Gear
-
         for gear in self.gear_inventory:
             for rarity in Gear_rarity:
                 if rarity != Gear_rarity.COMMON:
                     success = gear.merge(rarity, self.gear_inventory)
-
 
         # Sort gear inventory by highest level and try to level up
         sorted_gear_inventory = sorted(self.gear_inventory, key=lambda g: g.level, reverse=True)
@@ -316,7 +372,6 @@ class Player_meta_progression:
             gear.level_up(self)
 
         # Equip Gear
-
         for piece_type in Gear_pieces:
             if piece_type == Gear_pieces.DEFAULT:
                 continue
@@ -333,7 +388,8 @@ class Player_meta_progression:
             if prev_equipped is None or highest_level_gear.level > prev_equipped.level:
                 self.equipped_gear[piece_type] = highest_level_gear
                 Logger.add_log(
-                    Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.EQUIP_GEAR,
+                    Log_Action.EQUIP_GEAR,
+                    self.time.current_time(),
                     f"Equipped gear of {piece_type.value} with set {highest_level_gear.set.value} at level {highest_level_gear.level}",
                     {
                         "piece": piece_type.value,
@@ -342,17 +398,12 @@ class Player_meta_progression:
                     }
                 )
 
-        # Purchase
-
+        # Purchase 
+        # TODO: Implement purchasing logic for designs and gear
         return
     
     def chapter_level_up(self):
         self.chapter_level += 1
-        Logger.add_log(
-            Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.SIMULATE,
-            f"Chapter level up: new chapter level is {self.chapter_level}",
-            {"chapter_level": self.chapter_level}
-        )
         return
 
 
@@ -360,13 +411,15 @@ class Player_meta_progression:
 class Gacha_system:
 
     config_df: pd.DataFrame
+    time: timer
 
     @staticmethod
-    def initialize(config_df: pd.DataFrame) -> 'Gacha_system':
+    def initialize(config_df: pd.DataFrame, time: timer) -> 'Gacha_system':
 
-        return Gacha_system(config_df = config_df)
+        return Gacha_system(config_df = config_df, time=time)
 
     def open_chest(self, meta: Player_meta_progression, chest_name: str):
+
 
         row = self.config_df.loc[self.config_df['chest_name'] == chest_name].iloc[0]
 
@@ -393,7 +446,8 @@ class Gacha_system:
         new_gear_set = random.choice([s for s in Gear_sets if s != Gear_sets.DEFAULT])
 
         Logger.add_log(
-            Log_Actor.SIMULATION, Log_Granularity.META, Log_Action.OPEN_GACHA,
+            Log_Action.OPEN_GACHA,
+            self.time.current_time(),
             f"Opened {chest_name} chest and received gear piece {new_gear_piece.value}, set {new_gear_set.value}, rarity {new_gear_rarity}",
             {
                 "chest_name": chest_name,
@@ -406,19 +460,25 @@ class Gacha_system:
         meta.add_gear(new_gear_piece, new_gear_set, new_gear_rarity)
         return
 
+
 @dataclass
 class Chapter:
 
     chapters_config: pd.DataFrame
+    time: timer
 
     @staticmethod
-    def initialize(chapters_config: pd.DataFrame) -> 'Chapter':
+    def initialize(chapters_config: pd.DataFrame, time: timer) -> 'Chapter':
         chapter = Chapter(
-            chapters_config=chapters_config
+            chapters_config=chapters_config,
+            time=time
         )
         return chapter
 
     def simulate(self, chapter_num: int, meta: Player_meta_progression, gacha_system: Gacha_system) -> bool:
+
+        # Pass Time
+        self.time.increment_play_chapter()
 
         chapter_config = self.chapters_config.loc[self.chapters_config[ConfigKeys.CHAPTER_NUM.value] == chapter_num]
 
@@ -446,7 +506,8 @@ class Chapter:
             win_reward_gacha = chapter_config[ConfigKeys.WIN_REWARD_GACHA.value].iloc[0]
 
             Logger.add_log(
-                Log_Actor.SIMULATION, Log_Granularity.CHAPTER, Log_Action.WIN_CHAPTER,
+                Log_Action.WIN_CHAPTER,
+                self.time.current_time(),
                 f"Chapter {chapter_num} victory: awarded {win_reward_gold} gold, {win_reward_designs} designs, and opened {win_reward_gacha} chest",
                 {
                     "chapter_num": chapter_num,
@@ -470,7 +531,8 @@ class Chapter:
             lose_reward_gacha = chapter_config[ConfigKeys.LOSE_REWARD_GACHA.value].iloc[0]
 
             Logger.add_log(
-                Log_Actor.SIMULATION, Log_Granularity.CHAPTER, Log_Action.LOSE_CHAPTER,
+                Log_Action.LOSE_CHAPTER,
+                self.time.current_time(),
                 f"Chapter {chapter_num} defeat: awarded {lose_reward_gold} gold, {lose_reward_designs} designs, and opened {lose_reward_gacha} chest",
                 {
                     "chapter_num": chapter_num,
@@ -505,14 +567,24 @@ class model:
 
     meta_progression: Player_meta_progression
     gacha_system: Gacha_system
-
+    chapters: Chapter
+    
+    
     rounds_done: int
     max_allowed_rounds: int #value to block infinite loops in any while-true situation
     total_chapters: int
+    timer: timer
+
+    current_day: int
+    current_day_session: int
+    free_rare_num: int
+    free_epic_num: int
+    sessions_per_day: int
+    avg_session_length: int
 
     @staticmethod
     def initialize(main_config: Config) -> 'model':
-
+        
         rounds_done = 0
         max_allowed_rounds = 40  #value to block infinite loops in any while-true situation
         total_chapters = main_config.get_total_chapters()
@@ -521,63 +593,69 @@ class model:
         gear_merge_config = main_config.gear_merge_df
         chapters_config = main_config.chapters_df
         gacha_config = main_config.gacha_df
-        
-        meta_progression = Player_meta_progression.initialize(gear_levels_config, gear_merge_config)
-        gacha_system = Gacha_system.initialize(gacha_config)
+        timer_config = main_config.timers_df
 
-        Logger.add_log(
-            Log_Actor.SIMULATION, Log_Granularity.SIMULATION, Log_Action.INITIALIZE,
-            "Model initialized configs: player and enemies",
-            {"gear_levels_config": gear_levels_config,
-             "gear_merge_config": gear_merge_config,
-             "chapters_config": chapters_config,
-             "gacha_config": gacha_config})
+        # Timer Section
+        timer_instance = timer.initialize(timer_config)
+        free_rare_num = gacha_config.loc[gacha_config[ConfigKeys.CHEST_NAME.value] == "rare",ConfigKeys.FREE_DAILY.value].iloc[0]
+        free_epic_num = gacha_config.loc[gacha_config[ConfigKeys.CHEST_NAME.value] == "epic",ConfigKeys.FREE_DAILY.value].iloc[0]
+        sessions_per_day = timer_config.loc[timer_config[ConfigKeys.TIMER_ACTION.value] == ConfigKeys.SESSIONS_PER_DAY.value,ConfigKeys.TIMER_AMOUNT.value].iloc[0]
+        avg_session_length = timer_config.loc[timer_config[ConfigKeys.TIMER_ACTION.value] == ConfigKeys.AVG_SESSION_LENGTH.value,ConfigKeys.TIMER_AMOUNT.value].iloc[0]
+        current_day = timer_instance.current_day()
+        current_day_session = 1 
+
+        meta_progression = Player_meta_progression.initialize(gear_levels_config, gear_merge_config, timer_instance)
+        gacha_system = Gacha_system.initialize(gacha_config, timer_instance)
+        chapters = Chapter.initialize(chapters_config, timer_instance)
+
+        
 
         return model(
             meta_progression=meta_progression,
             gacha_system=gacha_system,
             rounds_done=rounds_done,
             max_allowed_rounds=max_allowed_rounds,
-            total_chapters=total_chapters
+            total_chapters=total_chapters,
+            timer=timer_instance,
+            chapters=chapters,
+            current_day=current_day,
+            free_rare_num=free_rare_num,
+            free_epic_num=free_epic_num,
+            sessions_per_day=sessions_per_day,
+            avg_session_length=avg_session_length,
+            current_day_session=current_day_session
             )
     
     def simulate(self, main_config: Config):
 
+        self.current_day = self.timer.current_day()
+        self.current_day_session = 1
+
         while(self.rounds_done<=self.max_allowed_rounds
               and self.meta_progression.chapter_level<=self.total_chapters):
-            self.rounds_done+=1
+            self.rounds_done+=1          
 
-            Logger.add_log(
-            Log_Actor.SIMULATION, Log_Granularity.CHAPTER, Log_Action.SIMULATE,
-            f"Starting simulation for chapter {self.meta_progression.chapter_level} in round {self.rounds_done}",
-            {"chapter_level": self.meta_progression.chapter_level,
-             "rounds_done": self.rounds_done,
-             "meta_progression": asdict(self.meta_progression)})
+            # Check current session time
+            if self.timer.current_session_time() >= self.avg_session_length:
+                self.timer.new_session()
+                self.current_day_session += 1
+
+            # Check max sessions per day
+            if self.current_day_session > self.sessions_per_day:
+                self.timer.complete_day()
+                self.timer.new_session()
+                self.current_day_session = 1
+
+            # Daily Gifts
+            if self.timer.current_day() > self.current_day:
+                self.current_day = self.timer.current_day()
+                self.daily_free_gachas()
 
             # Chapter Simulation
             chapter_level = self.meta_progression.chapter_level
             chapter_config = main_config.get_chapter_config(chapter_level)
-            chapter = Chapter.initialize(chapter_config)
 
-            victory_bool = chapter.simulate(chapter_level, self.meta_progression, self.gacha_system)
-
-            # Chapter Simulation
-            Logger.add_log(
-                Log_Actor.SIMULATION, Log_Granularity.CHAPTER, Log_Action.SIMULATE,
-            f"Chapter {chapter_level} simulation in round {self.rounds_done} completed with status: {'Victory' if victory_bool else 'Defeat'}",
-            {"chapter_level": chapter_level,
-             "victory": victory_bool,
-             "meta_progression": asdict(self.meta_progression)}
-            )
-
-            #fake progression
-            #self.meta_progression.gold += 1000000000000
-            #self.meta_progression.designs[Gear_pieces.HELMET] += 100000000
-            #self.meta_progression.add_gear(Gear_pieces.HELMET, Gear_sets.COLLECTOR, Gear_rarity.COMMON)
-            #self.gacha_system.open_chest(self.meta_progression, "rare")
-            #self.gacha_system.open_chest(self.meta_progression, "epic")
-
-
+            victory_bool = self.chapters.simulate(chapter_level, self.meta_progression, self.gacha_system)
 
             # Meta Progression Simulation
             self.meta_progression.simulate()
@@ -586,3 +664,20 @@ class model:
                 self.meta_progression.chapter_level += 1
 
         return
+    
+    def daily_free_gachas(self) -> None:
+
+        Logger.add_log(
+            Log_Action.DAILY_FREE_GACHA,
+            self.timer.current_time(),
+            f"Daily free gacha: {self.free_rare_num} rare and {self.free_epic_num} epic",
+            {
+                "free_rare_num": self.free_rare_num,
+                "free_epic_num": self.free_epic_num
+            })
+
+        for _ in range(self.free_rare_num):
+            self.gacha_system.open_chest(self.meta_progression, "rare")
+
+        for _ in range(self.free_epic_num):
+            self.gacha_system.open_chest(self.meta_progression, "epic")
