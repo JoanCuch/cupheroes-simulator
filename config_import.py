@@ -15,6 +15,8 @@ class ConfigSheets(Enum):
     CHAPTERS_SHEET_NAME = "SIM_CHAPTERS"
     TIMERS_SHEET_NAME = "SIM_TIMERS"
     CHESTS_SHEET_NAME = "SIM_CHESTS"
+    OFFERS_SHEET_NAME = "SIM_OFFERS"
+    PLAYERS_SHEET_NAME = "SIM_PLAYERS"
 
 class ConfigKeys(Enum):
     STAT_NAME = "stat_name"
@@ -43,14 +45,27 @@ class ConfigKeys(Enum):
     LOSE_REWARD_GOLD = "lose_reward_gold"
     LOSE_REWARD_DESIGNS = "lose_reward_designs" 
     LOSE_REWARD_GACHA = "lose_reward_gacha"
-    TIMER_AMOUNT = "timer_amount"
-    TIMER_ACTION = "timer_action"
-    SESSIONS_PER_DAY = "sessions_per_day"
-    AVG_SESSION_LENGTH = "avg_session_length"
-    PLAY_CHAPTER = "play_chapter"
-    META_PROGRESSION = "meta_progression"
     RARE_CHEST_NAME = "rare_chest"
     EPIC_CHEST_NAME = "epic_chest"
+    OFFER_NAME = "offer_name"
+    OFFER_PRICE_AMOUNT = "price_amount"
+    OFFER_PRICE_UNIT = "price_unit"
+    OFFER_RARE_CHEST = "rare_chest"
+    OFFER_EPIC_CHEST = "epic_chest"
+    OFFER_COIN = "coin"
+    OFFER_DESIGN = "design"
+    OFFER_DIAMOND = "diamond"
+    PLAYER_TYPE = "player_type"
+    PLAYER_SESSIONS_PER_DAY = "sessions_per_day"
+    PLAYER_AVG_SESSION_LENGTH = "avg_session_length"
+    PLAYER_PLAY_CHAPTER = "play_chapter_time"
+    PLAYER_META_PROGRESSION = "meta_progression_time"
+    PLAYER_PURCHASE_FREQUENCY_DAYS = "purchase_frequenzy_days"
+    PLAYER_FREE_DAILY_RARE_CHEST = "free_daily_rare_chest"
+    PLAYER_FREE_DAILY_EPIC_CHEST = "free_daily_epic_chest"
+    PLAYER_SIMULATE = "simulate"
+
+
 
 @dataclass
 class Config:
@@ -58,7 +73,8 @@ class Config:
     gear_levels_df: pd.DataFrame
     chapters_df: pd.DataFrame
     gacha_df: pd.DataFrame
-    timers_df: pd.DataFrame
+    offers_df: pd.DataFrame
+    players_df: pd.DataFrame
 
     @staticmethod
     def initialize() -> 'Config':
@@ -72,14 +88,17 @@ class Config:
         gear_merge_df = pd.DataFrame(sheet.worksheet(ConfigSheets.GEAR_MERGE_SHEET_NAME.value).get_all_records())
         chapters_df = pd.DataFrame(sheet.worksheet(ConfigSheets.CHAPTERS_SHEET_NAME.value).get_all_records())
         gacha_df = pd.DataFrame(sheet.worksheet(ConfigSheets.CHESTS_SHEET_NAME.value).get_all_records())
-        timers_df = pd.DataFrame(sheet.worksheet(ConfigSheets.TIMERS_SHEET_NAME.value).get_all_records())
+        offers_df = pd.DataFrame(sheet.worksheet(ConfigSheets.OFFERS_SHEET_NAME.value).get_all_records())
+        players_df = pd.DataFrame(sheet.worksheet(ConfigSheets.PLAYERS_SHEET_NAME.value).get_all_records())
+
 
         config = Config(
             gear_levels_df=gear_levels_df,
             gear_merge_df=gear_merge_df,
             chapters_df=chapters_df,
             gacha_df=gacha_df,
-            timers_df=timers_df
+            offers_df=offers_df,
+            players_df=players_df
         )
 
         return config
@@ -94,12 +113,13 @@ class Config:
     def get_all_chapters_config(self) -> pd.DataFrame:
         return self.chapters_df
 
-    def reasign_config(self, new_gear_levels_config, new_gear_merge_config, new_chapters_config, new_gacha_config, new_timers_config):
+    def reasign_config(self, new_gear_levels_config, new_gear_merge_config, new_chapters_config, new_gacha_config, new_offers_config, new_players_config):
         self.gear_levels_df = new_gear_levels_config
         self.gear_merge_df = new_gear_merge_config
         self.chapters_df = new_chapters_config
         self.gacha_df = new_gacha_config
-        self.timers_df = new_timers_config
+        self.offers_df = new_offers_config
+        self.players_df = new_players_config
 
 def connect_to_API() -> gspread.Client:
     scopes = [

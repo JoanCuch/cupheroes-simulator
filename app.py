@@ -94,7 +94,8 @@ edited_gear_levels_config = st.data_editor(config.gear_levels_df)
 edited_gear_merge_config = st.data_editor(config.gear_merge_df)
 edited_chapters_config = st.data_editor(config.chapters_df)
 edited_gacha_config = st.data_editor(config.gacha_df)
-edited_timers_config = st.data_editor(config.timers_df)
+edited_offers_config = st.data_editor(config.offers_df)
+edited_players_config = st.data_editor(config.players_df)
 
 # Simulation
 if "simulation_done" not in st.session_state:
@@ -107,7 +108,8 @@ if st.button("Run Simulation"):
     new_gear_merge_config=edited_gear_merge_config,
     new_chapters_config=edited_chapters_config,
     new_gacha_config=edited_gacha_config,
-    new_timers_config=edited_timers_config,
+    new_offers_config=edited_offers_config,
+    new_players_config=edited_players_config
     )
 
     Logger.clear_logs()

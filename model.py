@@ -65,11 +65,11 @@ class Timer:
     meta_progression_time: int
 
     @staticmethod
-    def initialize(timer_config_df: pd.DataFrame) -> 'Timer':
+    def initialize(player_behavior: dict[str, int]) -> 'Timer':
         current_total_time = 0
         current_session_time = 0
-        play_chapter_time = timer_config_df.loc[timer_config_df[ConfigKeys.TIMER_ACTION.value] == ConfigKeys.PLAY_CHAPTER.value, ConfigKeys.TIMER_AMOUNT.value].iloc[0]
-        meta_progression_time = timer_config_df.loc[timer_config_df[ConfigKeys.TIMER_ACTION.value] == ConfigKeys.META_PROGRESSION.value, ConfigKeys.TIMER_AMOUNT.value].iloc[0]
+        play_chapter_time = player_behavior[ConfigKeys.PLAYER_PLAY_CHAPTER.value]
+        meta_progression_time = player_behavior[ConfigKeys.PLAYER_META_PROGRESSION.value]
         return Timer(total_time=current_total_time, session_time=current_session_time, play_chapter_time=play_chapter_time, meta_progression_time=meta_progression_time)
 
     def increment(self, minutes: int):
@@ -597,10 +597,12 @@ class model:
 
     current_day: int
     current_day_session: int
-    free_rare_num: int
-    free_epic_num: int
-    sessions_per_day: int
-    avg_session_length: int
+    #free_rare_num: int
+    #free_epic_num: int
+    #sessions_per_day: int
+    #avg_session_length: int
+
+    player_behavior: dict[str, int]
 
     @staticmethod
     def initialize(main_config: Config) -> 'model':
@@ -613,14 +615,23 @@ class model:
         gear_merge_config = main_config.gear_merge_df
         chapters_config = main_config.chapters_df
         gacha_config = main_config.gacha_df
-        timer_config = main_config.timers_df
+        offers_config = main_config.offers_df
+        players_config = main_config.players_df
+
+
+        #Player Behavior
+        players_config[ConfigKeys.PLAYER_SIMULATE.value] = (players_config[ConfigKeys.PLAYER_SIMULATE.value].astype(str).str.upper().eq("TRUE")
+)
+        player_type = players_config.loc[players_config[ConfigKeys.PLAYER_SIMULATE.value] == True, ConfigKeys.PLAYER_TYPE.value].iloc[0]
+
+        player_behavior = players_config.loc[players_config[ConfigKeys.PLAYER_TYPE.value] == player_type].to_dict(orient='records')[0]
 
         # Timer Section
-        timer_instance = Timer.initialize(timer_config)
-        free_rare_num = gacha_config.loc[gacha_config[ConfigKeys.CHEST_NAME.value] == ConfigKeys.RARE_CHEST_NAME.value,ConfigKeys.FREE_DAILY.value].iloc[0]
-        free_epic_num = gacha_config.loc[gacha_config[ConfigKeys.CHEST_NAME.value] == ConfigKeys.EPIC_CHEST_NAME.value,ConfigKeys.FREE_DAILY.value].iloc[0]
-        sessions_per_day = timer_config.loc[timer_config[ConfigKeys.TIMER_ACTION.value] == ConfigKeys.SESSIONS_PER_DAY.value,ConfigKeys.TIMER_AMOUNT.value].iloc[0]
-        avg_session_length = timer_config.loc[timer_config[ConfigKeys.TIMER_ACTION.value] == ConfigKeys.AVG_SESSION_LENGTH.value,ConfigKeys.TIMER_AMOUNT.value].iloc[0]
+        timer_instance = Timer.initialize(player_behavior)
+        #free_rare_num = gacha_config.loc[gacha_config[ConfigKeys.CHEST_NAME.value] == ConfigKeys.RARE_CHEST_NAME.value,ConfigKeys.FREE_DAILY.value].iloc[0]
+        #free_epic_num = gacha_config.loc[gacha_config[ConfigKeys.CHEST_NAME.value] == ConfigKeys.EPIC_CHEST_NAME.value,ConfigKeys.FREE_DAILY.value].iloc[0]
+        #sessions_per_day = timer_config.loc[timer_config[ConfigKeys.TIMER_ACTION.value] == ConfigKeys.SESSIONS_PER_DAY.value,ConfigKeys.TIMER_AMOUNT.value].iloc[0]
+        #avg_session_length = timer_config.loc[timer_config[ConfigKeys.TIMER_ACTION.value] == ConfigKeys.AVG_SESSION_LENGTH.value,ConfigKeys.TIMER_AMOUNT.value].iloc[0]
         current_day = timer_instance.current_day()
         current_day_session = 1 
 
@@ -639,10 +650,11 @@ class model:
             timer=timer_instance,
             chapters=chapters,
             current_day=current_day,
-            free_rare_num=free_rare_num,
-            free_epic_num=free_epic_num,
-            sessions_per_day=sessions_per_day,
-            avg_session_length=avg_session_length,
+            player_behavior=player_behavior,
+            #free_rare_num=free_rare_num,
+            #free_epic_num=free_epic_num,
+            #sessions_per_day=sessions_per_day,
+            #avg_session_length=avg_session_length,
             current_day_session=current_day_session
             )
     
@@ -656,12 +668,12 @@ class model:
             self.rounds_done+=1          
 
             # Check current session time
-            if self.timer.current_session_time() >= self.avg_session_length:
+            if self.timer.current_session_time() >= self.player_behavior[ConfigKeys.PLAYER_AVG_SESSION_LENGTH.value]:
                 self.timer.new_session()
                 self.current_day_session += 1
 
             # Check max sessions per day
-            if self.current_day_session > self.sessions_per_day:
+            if self.current_day_session > self.player_behavior[ConfigKeys.PLAYER_SESSIONS_PER_DAY.value]:
                 self.timer.complete_day()
                 self.timer.new_session()
                 self.current_day_session = 1
@@ -690,14 +702,14 @@ class model:
         Logger.add_log(
             Log_Action.DAILY_FREE_GACHA,
             self.timer.get_timer_info(),
-            f"Daily free gacha: {self.free_rare_num} rare and {self.free_epic_num} epic",
+            f"Daily free gacha: {self.player_behavior[ConfigKeys.PLAYER_FREE_DAILY_RARE_CHEST.value]} rare and {self.player_behavior[ConfigKeys.PLAYER_FREE_DAILY_EPIC_CHEST.value]} epic",
             {
-                "free_rare_num": self.free_rare_num,
-                "free_epic_num": self.free_epic_num
+                "free_rare_num": self.player_behavior[ConfigKeys.PLAYER_FREE_DAILY_RARE_CHEST.value],
+                "free_epic_num": self.player_behavior[ConfigKeys.PLAYER_FREE_DAILY_EPIC_CHEST.value]
             })
 
-        for _ in range(self.free_rare_num):
+        for _ in range(self.player_behavior[ConfigKeys.PLAYER_FREE_DAILY_RARE_CHEST.value]):
             self.gacha_system.open_chest(self.meta_progression, ConfigKeys.RARE_CHEST_NAME.value)
 
-        for _ in range(self.free_epic_num):
+        for _ in range(self.player_behavior[ConfigKeys.PLAYER_FREE_DAILY_EPIC_CHEST.value]):
             self.gacha_system.open_chest(self.meta_progression, ConfigKeys.EPIC_CHEST_NAME.value)
