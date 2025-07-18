@@ -10,9 +10,11 @@ from logger import Logger, Log_Action
 
 class ConfigSheets(Enum):
     SPREADSHEET_NAME = "cupheroes_sim_data"
-    GEAR_LEVELS_SHEET_NAMEE = "GEAR_LEVELS"
-    GEAR_MERGE_SHEET_NAME = "GEAR_MERGE"
-    CHAPTERS_SHEET_NAME = "CHAPTERS"
+    GEAR_LEVELS_SHEET_NAMEE = "SIM_GEAR_LEVELS"
+    GEAR_MERGE_SHEET_NAME = "SIM_GEAR_MERGE"
+    CHAPTERS_SHEET_NAME = "SIM_CHAPTERS"
+    TIMERS_SHEET_NAME = "SIM_TIMERS"
+    CHESTS_SHEET_NAME = "SIM_CHESTS"
 
 class ConfigKeys(Enum):
     STAT_NAME = "stat_name"
@@ -47,6 +49,8 @@ class ConfigKeys(Enum):
     AVG_SESSION_LENGTH = "avg_session_length"
     PLAY_CHAPTER = "play_chapter"
     META_PROGRESSION = "meta_progression"
+    RARE_CHEST_NAME = "rare_chest"
+    EPIC_CHEST_NAME = "epic_chest"
 
 @dataclass
 class Config:
@@ -67,8 +71,8 @@ class Config:
         gear_levels_df = pd.DataFrame(sheet.worksheet(ConfigSheets.GEAR_LEVELS_SHEET_NAMEE.value).get_all_records())
         gear_merge_df = pd.DataFrame(sheet.worksheet(ConfigSheets.GEAR_MERGE_SHEET_NAME.value).get_all_records())
         chapters_df = pd.DataFrame(sheet.worksheet(ConfigSheets.CHAPTERS_SHEET_NAME.value).get_all_records())
-        gacha_df = pd.DataFrame(sheet.worksheet("GACHA").get_all_records())
-        timers_df = pd.DataFrame(sheet.worksheet("TIMERS").get_all_records())
+        gacha_df = pd.DataFrame(sheet.worksheet(ConfigSheets.CHESTS_SHEET_NAME.value).get_all_records())
+        timers_df = pd.DataFrame(sheet.worksheet(ConfigSheets.TIMERS_SHEET_NAME.value).get_all_records())
 
         config = Config(
             gear_levels_df=gear_levels_df,
@@ -90,10 +94,12 @@ class Config:
     def get_all_chapters_config(self) -> pd.DataFrame:
         return self.chapters_df
 
-    def reasign_config(self, new_gear_levels_config, new_gear_merge_config, new_chapters_config):
+    def reasign_config(self, new_gear_levels_config, new_gear_merge_config, new_chapters_config, new_gacha_config, new_timers_config):
         self.gear_levels_df = new_gear_levels_config
         self.gear_merge_df = new_gear_merge_config
         self.chapters_df = new_chapters_config
+        self.gacha_df = new_gacha_config
+        self.timers_df = new_timers_config
 
 def connect_to_API() -> gspread.Client:
     scopes = [

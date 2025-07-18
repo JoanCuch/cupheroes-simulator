@@ -105,7 +105,9 @@ if st.button("Run Simulation"):
     config.reasign_config(
     new_gear_levels_config=edited_gear_levels_config,
     new_gear_merge_config=edited_gear_merge_config,
-    new_chapters_config=edited_chapters_config
+    new_chapters_config=edited_chapters_config,
+    new_gacha_config=edited_gacha_config,
+    new_timers_config=edited_timers_config,
     )
 
     Logger.clear_logs()

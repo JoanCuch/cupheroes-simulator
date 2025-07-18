@@ -30,14 +30,25 @@ class Gear_pieces(Enum):
 
 class Gear_rarity(IntEnum):
     COMMON = 1
-    RARE = 2
-    EPIC = 3
-    EPIC2 = 4
+    UNCOMMON = 2
+    RARE = 3
+    EPIC = 4
     MYTHICAL = 5
     LEGENDARY = 6
 
     def __str__(self):
         return self.name.lower()
+    
+    @staticmethod
+    def parse(value: "Gear_rarity | str | int") -> "Gear_rarity":
+        """Accepta enum, string ('common') o int (1-6) i retorna Gear_rarity."""
+        if isinstance(value, Gear_rarity):
+            return value
+        if isinstance(value, (int, float)):
+            return Gear_rarity(int(value))
+        if isinstance(value, str):
+            return Gear_rarity[value.strip().upper()]
+        raise ValueError(f"Unknown rarity value: {value}")
     
 @dataclass
 class MergeRequirement:
@@ -281,6 +292,8 @@ class Player_meta_progression:
     @staticmethod
     def initialize(gear_levels_config: pd.DataFrame, gear_merge_config: pd.DataFrame, time: timer) -> 'Player_meta_progression':
 
+        gear_levels_config[ConfigKeys.REQUIRED_RARITY.value] = (gear_levels_config[ConfigKeys.REQUIRED_RARITY.value].apply(Gear_rarity.parse))
+
         gold = 0
         chapter_level = 1
 
@@ -430,13 +443,13 @@ class Gacha_system:
             rarity_column = rarity.name.lower()
             if rarity_column in self.config_df.columns:
                 raw_weight = row[rarity_column]
-                if pd.isna(raw_weight):
+
+                if pd.isna(raw_weight) or raw_weight == "":
                     continue
                 # Convert to float, allowing comma as decimal
-                try:
-                    weight_f = float(str(raw_weight).replace(',', '.'))
-                except ValueError:
-                    continue
+                 #weight_f = float(str(raw_weight).replace(',', '.'))
+                weight_f = float(raw_weight)
+
                 if weight_f > 0:
                     rarities.append(rarity)
                     weights.append(weight_f)
@@ -597,8 +610,8 @@ class model:
 
         # Timer Section
         timer_instance = timer.initialize(timer_config)
-        free_rare_num = gacha_config.loc[gacha_config[ConfigKeys.CHEST_NAME.value] == "rare",ConfigKeys.FREE_DAILY.value].iloc[0]
-        free_epic_num = gacha_config.loc[gacha_config[ConfigKeys.CHEST_NAME.value] == "epic",ConfigKeys.FREE_DAILY.value].iloc[0]
+        free_rare_num = gacha_config.loc[gacha_config[ConfigKeys.CHEST_NAME.value] == ConfigKeys.RARE_CHEST_NAME.value,ConfigKeys.FREE_DAILY.value].iloc[0]
+        free_epic_num = gacha_config.loc[gacha_config[ConfigKeys.CHEST_NAME.value] == ConfigKeys.EPIC_CHEST_NAME.value,ConfigKeys.FREE_DAILY.value].iloc[0]
         sessions_per_day = timer_config.loc[timer_config[ConfigKeys.TIMER_ACTION.value] == ConfigKeys.SESSIONS_PER_DAY.value,ConfigKeys.TIMER_AMOUNT.value].iloc[0]
         avg_session_length = timer_config.loc[timer_config[ConfigKeys.TIMER_ACTION.value] == ConfigKeys.AVG_SESSION_LENGTH.value,ConfigKeys.TIMER_AMOUNT.value].iloc[0]
         current_day = timer_instance.current_day()
@@ -677,7 +690,7 @@ class model:
             })
 
         for _ in range(self.free_rare_num):
-            self.gacha_system.open_chest(self.meta_progression, "rare")
+            self.gacha_system.open_chest(self.meta_progression, ConfigKeys.RARE_CHEST_NAME.value)
 
         for _ in range(self.free_epic_num):
-            self.gacha_system.open_chest(self.meta_progression, "epic")
+            self.gacha_system.open_chest(self.meta_progression, ConfigKeys.EPIC_CHEST_NAME.value)
