@@ -321,7 +321,7 @@ class Player_meta_progression:
             designs=designs,
             equipped_gear=equipped_gear,
             merge_rules=merge_rules,
-            time=time
+            time=time,
         )
 
         Logger.add_log(
@@ -375,6 +375,45 @@ class Player_meta_progression:
             }
         )
 
+    def apply_offer(self, offer_name: str, offers_df: pd.DataFrame, gacha: "Gacha_system") -> None:
+
+        row = offers_df.loc[offers_df[ConfigKeys.OFFER_NAME.value] == offer_name].iloc[0]
+
+        
+        rare_chest_to_open = int(row.get("rare_chest", 0) or 0)
+        epic_chest_to_open = int(row.get("epic_chest", 0) or 0)
+        gold_to_add = int(row.get("gold", 0) or 0)
+        designs_to_add = int(row.get("design", 0) or 0)
+
+        Logger.add_log(
+            Log_Action.PURCHASE_OFFER,
+            self.time.get_timer_info(),
+            f"Applied offer {offer_name}",
+            {
+                "offer_name": offer_name,
+                "rare_chests_opened": rare_chest_to_open,
+                "epic_chests_opened": epic_chest_to_open,
+                "gold_added": gold_to_add,
+                "designs_added": designs_to_add
+            }
+        )
+        
+        #row = offers_df.loc[offer_name].iloc[0]
+
+        for _ in range(rare_chest_to_open):
+            gacha.open_chest(self, ConfigKeys.RARE_CHEST_NAME.value)
+
+        for _ in range(epic_chest_to_open):
+            gacha.open_chest(self, ConfigKeys.EPIC_CHEST_NAME.value)
+
+        if gold_to_add > 0:
+            self.gold += gold_to_add
+
+        if designs_to_add > 0:
+            self.add_designs(designs_to_add)
+
+        
+
     def simulate(self):
 
         # Pass Time
@@ -418,8 +457,6 @@ class Player_meta_progression:
                     }
                 )
 
-        # Purchase 
-        # TODO: Implement purchasing logic for designs and gear
         return
     
     def chapter_level_up(self):
@@ -597,12 +634,10 @@ class model:
 
     current_day: int
     current_day_session: int
-    #free_rare_num: int
-    #free_epic_num: int
-    #sessions_per_day: int
-    #avg_session_length: int
 
     player_behavior: dict[str, int]
+
+    main_config: Config
 
     @staticmethod
     def initialize(main_config: Config) -> 'model':
@@ -651,14 +686,11 @@ class model:
             chapters=chapters,
             current_day=current_day,
             player_behavior=player_behavior,
-            #free_rare_num=free_rare_num,
-            #free_epic_num=free_epic_num,
-            #sessions_per_day=sessions_per_day,
-            #avg_session_length=avg_session_length,
-            current_day_session=current_day_session
+            current_day_session=current_day_session,
+            main_config=main_config
             )
     
-    def simulate(self, main_config: Config):
+    def simulate(self):
 
         self.current_day = self.timer.current_day()
         self.current_day_session = 1
@@ -683,15 +715,25 @@ class model:
                 self.current_day = self.timer.current_day()
                 self.daily_free_gachas()
 
-            # Chapter Simulation
-            chapter_level = self.meta_progression.chapter_level
-            chapter_config = main_config.get_chapter_config(chapter_level)
+            # Purchase Offers
+            
+            offers_list = self.main_config.offers_df[ConfigKeys.OFFER_NAME.value].tolist()
 
-            victory_bool = self.chapters.simulate(chapter_level, self.meta_progression, self.gacha_system)
+            for offer in offers_list:
+                if self.player_behavior[str(offer)] > 0:
+                    self.meta_progression.apply_offer(str(offer), self.main_config.offers_df, self.gacha_system)
+            
 
             # Meta Progression Simulation
             self.meta_progression.simulate()
 
+            # Chapter Simulation
+            chapter_level = self.meta_progression.chapter_level
+            chapter_config = self.main_config.get_chapter_config(chapter_level)
+
+            victory_bool = self.chapters.simulate(chapter_level, self.meta_progression, self.gacha_system)
+
+            # If victory, go to next chapter
             if victory_bool:
                 self.meta_progression.chapter_level += 1
 

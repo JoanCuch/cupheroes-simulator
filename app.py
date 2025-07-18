@@ -114,7 +114,7 @@ if st.button("Run Simulation"):
 
     Logger.clear_logs()
     model_instance = model.initialize(config)
-    model_instance.simulate(main_config=config)
+    model_instance.simulate()
     st.session_state.simulation_done = True
 
 

@@ -18,6 +18,7 @@ class Log_Action(Enum) :
     ADD_DESIGNS = "add_designs" 
     EQUIP_GEAR = "equip_gear"
     DAILY_FREE_GACHA = "daily_free_gacha"
+    PURCHASE_OFFER = "purchase_offer"
 
 class Logger:
     _logs = []
