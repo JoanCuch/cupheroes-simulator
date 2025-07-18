@@ -57,7 +57,7 @@ class MergeRequirement:
     set_requirement: Gear_sets 
 
 @dataclass
-class timer:
+class Timer:
     total_time: int
     session_time: int
 
@@ -65,18 +65,25 @@ class timer:
     meta_progression_time: int
 
     @staticmethod
-    def initialize(timer_config_df: pd.DataFrame) -> 'timer':
+    def initialize(timer_config_df: pd.DataFrame) -> 'Timer':
         current_total_time = 0
         current_session_time = 0
         play_chapter_time = timer_config_df.loc[timer_config_df[ConfigKeys.TIMER_ACTION.value] == ConfigKeys.PLAY_CHAPTER.value, ConfigKeys.TIMER_AMOUNT.value].iloc[0]
         meta_progression_time = timer_config_df.loc[timer_config_df[ConfigKeys.TIMER_ACTION.value] == ConfigKeys.META_PROGRESSION.value, ConfigKeys.TIMER_AMOUNT.value].iloc[0]
-        return timer(total_time=current_total_time, session_time=current_session_time, play_chapter_time=play_chapter_time, meta_progression_time=meta_progression_time)
+        return Timer(total_time=current_total_time, session_time=current_session_time, play_chapter_time=play_chapter_time, meta_progression_time=meta_progression_time)
 
     def increment(self, minutes: int):
         self.total_time += minutes
         self.session_time += minutes
         return
     
+    def get_timer_info(self) -> 'Dict[str, int]':
+        return {
+            "total_time": int(self.total_time),
+            "current_day": int(self.current_day()),
+            "session_time": int(self.session_time)
+        }
+
     def increment_play_chapter(self):
         self.total_time += self.play_chapter_time
         self.session_time += self.play_chapter_time
@@ -88,7 +95,7 @@ class timer:
         return
     
     def current_day(self) -> int:
-        return self.total_time // 1440
+        return self.total_time // 1440 + 1
     
     def complete_day(self):
         minutes_to_complete = 1440 - (self.total_time % 1440) + 1 # +1 to ensure we get to a new day
@@ -114,10 +121,10 @@ class Gear:
     rarity_list: Dict[Gear_rarity, int]
     merge_rules: Dict[Gear_rarity, List[MergeRequirement]]
     level_up_rules: pd.DataFrame
-    time: timer
+    time: Timer
 
     @staticmethod
-    def initialize(gear_set: Gear_sets, gear_piece: Gear_pieces, gear_levels_df: pd.DataFrame, gear_merge_df: pd.DataFrame, time: timer) -> 'Gear':
+    def initialize(gear_set: Gear_sets, gear_piece: Gear_pieces, gear_levels_df: pd.DataFrame, gear_merge_df: pd.DataFrame, time: Timer) -> 'Gear':
 
         level = 0
         set = gear_set
@@ -209,7 +216,7 @@ class Gear:
 
         Logger.add_log(
             Log_Action.MERGE,
-            self.time.current_time(),   
+            self.time.get_timer_info(),   
             f"Successfully merged gear of {self.piece.value} and {self.set.value} to {target_rarity}",
             {
                 "piece": self.piece.value,
@@ -259,7 +266,7 @@ class Gear:
                 self.level = expected_level
                 Logger.add_log(
                     Log_Action.LEVEL_UP,
-                    self.time.current_time(),
+                    self.time.get_timer_info(),
                     f"Level up gear of {self.piece.value} and {self.set.value} and {self.max_rarity} to level {expected_level}",
                     {
                     "level": self.level,
@@ -284,13 +291,13 @@ class Player_meta_progression:
     gear_inventory: List[Gear]
     designs: Dict[Gear_pieces, int]
     equipped_gear: Dict[Gear_pieces, Gear]
-    time: timer
+    time: Timer
     chapter_level: int
     merge_rules: Dict[Gear_rarity, List[MergeRequirement]] = field(default_factory=dict)
    
 
     @staticmethod
-    def initialize(gear_levels_config: pd.DataFrame, gear_merge_config: pd.DataFrame, time: timer) -> 'Player_meta_progression':
+    def initialize(gear_levels_config: pd.DataFrame, gear_merge_config: pd.DataFrame, time: Timer) -> 'Player_meta_progression':
 
         gear_levels_config[ConfigKeys.REQUIRED_RARITY.value] = (gear_levels_config[ConfigKeys.REQUIRED_RARITY.value].apply(Gear_rarity.parse))
 
@@ -319,7 +326,7 @@ class Player_meta_progression:
 
         Logger.add_log(
             Log_Action.INITIALIZE,
-            time.current_time(),
+            time.get_timer_info(),
             "Meta progression initialized",
             {"meta_progression": asdict(new_meta) }
             )       
@@ -341,7 +348,7 @@ class Player_meta_progression:
 
             Logger.add_log(
                 Log_Action.ADD_GEAR,
-                self.time.current_time(),
+                self.time.get_timer_info(),
                 f"Added gear of {piece.value} and {set.value} to rarity {rarity}",
                 {
                     "piece": piece.value,
@@ -359,7 +366,7 @@ class Player_meta_progression:
 
         Logger.add_log(
             Log_Action.ADD_DESIGNS,
-            self.time.current_time(),
+            self.time.get_timer_info(),
             f"Added {amount} designs to {chosen_piece.value}",
             {
                 "piece": chosen_piece.value,
@@ -402,7 +409,7 @@ class Player_meta_progression:
                 self.equipped_gear[piece_type] = highest_level_gear
                 Logger.add_log(
                     Log_Action.EQUIP_GEAR,
-                    self.time.current_time(),
+                    self.time.get_timer_info(),
                     f"Equipped gear of {piece_type.value} with set {highest_level_gear.set.value} at level {highest_level_gear.level}",
                     {
                         "piece": piece_type.value,
@@ -424,10 +431,10 @@ class Player_meta_progression:
 class Gacha_system:
 
     config_df: pd.DataFrame
-    time: timer
+    time: Timer
 
     @staticmethod
-    def initialize(config_df: pd.DataFrame, time: timer) -> 'Gacha_system':
+    def initialize(config_df: pd.DataFrame, time: Timer) -> 'Gacha_system':
 
         return Gacha_system(config_df = config_df, time=time)
 
@@ -460,7 +467,7 @@ class Gacha_system:
 
         Logger.add_log(
             Log_Action.OPEN_GACHA,
-            self.time.current_time(),
+            self.time.get_timer_info(),
             f"Opened {chest_name} chest and received gear piece {new_gear_piece.value}, set {new_gear_set.value}, rarity {new_gear_rarity}",
             {
                 "chest_name": chest_name,
@@ -478,10 +485,10 @@ class Gacha_system:
 class Chapter:
 
     chapters_config: pd.DataFrame
-    time: timer
+    time: Timer
 
     @staticmethod
-    def initialize(chapters_config: pd.DataFrame, time: timer) -> 'Chapter':
+    def initialize(chapters_config: pd.DataFrame, time: Timer) -> 'Chapter':
         chapter = Chapter(
             chapters_config=chapters_config,
             time=time
@@ -520,7 +527,7 @@ class Chapter:
 
             Logger.add_log(
                 Log_Action.WIN_CHAPTER,
-                self.time.current_time(),
+                self.time.get_timer_info(),
                 f"Chapter {chapter_num} victory: awarded {win_reward_gold} gold, {win_reward_designs} designs, and opened {win_reward_gacha} chest",
                 {
                     "chapter_num": chapter_num,
@@ -545,7 +552,7 @@ class Chapter:
 
             Logger.add_log(
                 Log_Action.LOSE_CHAPTER,
-                self.time.current_time(),
+                self.time.get_timer_info(),
                 f"Chapter {chapter_num} defeat: awarded {lose_reward_gold} gold, {lose_reward_designs} designs, and opened {lose_reward_gacha} chest",
                 {
                     "chapter_num": chapter_num,
@@ -586,7 +593,7 @@ class model:
     rounds_done: int
     max_allowed_rounds: int #value to block infinite loops in any while-true situation
     total_chapters: int
-    timer: timer
+    timer: Timer
 
     current_day: int
     current_day_session: int
@@ -609,7 +616,7 @@ class model:
         timer_config = main_config.timers_df
 
         # Timer Section
-        timer_instance = timer.initialize(timer_config)
+        timer_instance = Timer.initialize(timer_config)
         free_rare_num = gacha_config.loc[gacha_config[ConfigKeys.CHEST_NAME.value] == ConfigKeys.RARE_CHEST_NAME.value,ConfigKeys.FREE_DAILY.value].iloc[0]
         free_epic_num = gacha_config.loc[gacha_config[ConfigKeys.CHEST_NAME.value] == ConfigKeys.EPIC_CHEST_NAME.value,ConfigKeys.FREE_DAILY.value].iloc[0]
         sessions_per_day = timer_config.loc[timer_config[ConfigKeys.TIMER_ACTION.value] == ConfigKeys.SESSIONS_PER_DAY.value,ConfigKeys.TIMER_AMOUNT.value].iloc[0]
@@ -682,7 +689,7 @@ class model:
 
         Logger.add_log(
             Log_Action.DAILY_FREE_GACHA,
-            self.timer.current_time(),
+            self.timer.get_timer_info(),
             f"Daily free gacha: {self.free_rare_num} rare and {self.free_epic_num} epic",
             {
                 "free_rare_num": self.free_rare_num,

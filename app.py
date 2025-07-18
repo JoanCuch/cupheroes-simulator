@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from config_import import Config, ConfigKeys
-from model import model, Logger
+from model import model, Logger, Timer
 import matplotlib.pyplot as plt
 from typing import Any, Dict, cast
 from logger import Logger, Log_Action
@@ -119,6 +119,13 @@ if st.button("Run Simulation"):
 # Show results
 if st.session_state.simulation_done:
     log_df = Logger.get_logs_as_dataframe()
+
+        # Expand the 'time' dict column into separate columns
+    if 'time' in log_df.columns:
+        time_cols = log_df['time'].apply(pd.Series)
+        log_df = pd.concat([log_df.drop(columns=['time']), time_cols], axis=1)
+    
+    
     #show_log_table(log_df)
     #st.write(log_df)
     #plot_test()

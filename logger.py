@@ -23,7 +23,7 @@ class Logger:
     _logs = []
 
     @classmethod
-    def add_log(cls, action: Log_Action, time: int,message: str, payload: dict):
+    def add_log(cls, action: Log_Action, time, message: str, payload: dict):
         log_entry = {
             "action": action.value,
             "time": time,
