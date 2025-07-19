@@ -543,8 +543,8 @@ class Chapter:
 
         # Simulate the battle
 
-        avg_gear_level_required = chapter_config[ConfigKeys.AVG_GEAR_LEVEL_REQUIRED.value].iloc[0]
-        unique_gear_pieces_required = chapter_config[ConfigKeys.UNIQUE_GEAR_PIECES_REQUIRED.value].iloc[0]
+        avg_gear_level_required = int(chapter_config[ConfigKeys.AVG_GEAR_LEVEL_REQUIRED.value].iloc[0])
+        unique_gear_pieces_required = int(chapter_config[ConfigKeys.UNIQUE_GEAR_PIECES_REQUIRED.value].iloc[0])
         total_required_points = avg_gear_level_required * unique_gear_pieces_required
 
         total_player_points = 0
@@ -643,7 +643,7 @@ class model:
     def initialize(main_config: Config) -> 'model':
         
         rounds_done = 0
-        max_allowed_rounds = 40  #value to block infinite loops in any while-true situation
+        max_allowed_rounds = 1000  #value to block infinite loops in any while-true situation
         total_chapters = main_config.get_total_chapters()
 
         gear_levels_config = main_config.gear_levels_df
@@ -716,7 +716,6 @@ class model:
                 self.daily_free_gachas()
 
             # Purchase Offers
-            
             offers_list = self.main_config.offers_df[ConfigKeys.OFFER_NAME.value].tolist()
 
             for offer in offers_list:

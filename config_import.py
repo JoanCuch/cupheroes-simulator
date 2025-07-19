@@ -8,6 +8,24 @@ from enum import Enum
 from dataclasses import dataclass, field
 from logger import Logger, Log_Action
 
+# ---------------------------------------------------------------------------
+# Cached Google Sheets fetcher to avoid hitting read‑quota limits
+# ---------------------------------------------------------------------------
+@st.cache_data(ttl=300)  # cache for 5 minutes
+def _fetch_worksheet_df(spreadsheet_name: str, worksheet_name: str) -> pd.DataFrame:
+    """
+    Return the worksheet as DataFrame, caching the result to spare Google API calls.
+    Parameters
+    ----------
+    spreadsheet_name : str
+        The Google Sheets file name.
+    worksheet_name : str
+        The tab to fetch inside that file.
+    """
+    client = connect_to_API()
+    sheet = client.open(spreadsheet_name)
+    return pd.DataFrame(sheet.worksheet(worksheet_name).get_all_records())
+
 class ConfigSheets(Enum):
     SPREADSHEET_NAME = "cupheroes_sim_data"
     GEAR_LEVELS_SHEET_NAMEE = "SIM_GEAR_LEVELS"
@@ -79,17 +97,32 @@ class Config:
     @staticmethod
     def initialize() -> 'Config':
         # Connect to Google Sheets
-        client = connect_to_API()
+        #client = connect_to_API()
 
-        # Get the spreadsheet and turn into DataFrames
-        sheet = client.open(ConfigSheets.SPREADSHEET_NAME.value)
-
-        gear_levels_df = pd.DataFrame(sheet.worksheet(ConfigSheets.GEAR_LEVELS_SHEET_NAMEE.value).get_all_records())
-        gear_merge_df = pd.DataFrame(sheet.worksheet(ConfigSheets.GEAR_MERGE_SHEET_NAME.value).get_all_records())
-        chapters_df = pd.DataFrame(sheet.worksheet(ConfigSheets.CHAPTERS_SHEET_NAME.value).get_all_records())
-        gacha_df = pd.DataFrame(sheet.worksheet(ConfigSheets.CHESTS_SHEET_NAME.value).get_all_records())
-        offers_df = pd.DataFrame(sheet.worksheet(ConfigSheets.OFFERS_SHEET_NAME.value).get_all_records())
-        players_df = pd.DataFrame(sheet.worksheet(ConfigSheets.PLAYERS_SHEET_NAME.value).get_all_records())
+        gear_levels_df = _fetch_worksheet_df(
+            ConfigSheets.SPREADSHEET_NAME.value,
+            ConfigSheets.GEAR_LEVELS_SHEET_NAMEE.value,
+        )
+        gear_merge_df = _fetch_worksheet_df(
+            ConfigSheets.SPREADSHEET_NAME.value,
+            ConfigSheets.GEAR_MERGE_SHEET_NAME.value,
+        )
+        chapters_df = _fetch_worksheet_df(
+            ConfigSheets.SPREADSHEET_NAME.value,
+            ConfigSheets.CHAPTERS_SHEET_NAME.value,
+        )
+        gacha_df = _fetch_worksheet_df(
+            ConfigSheets.SPREADSHEET_NAME.value,
+            ConfigSheets.CHESTS_SHEET_NAME.value,
+        )
+        offers_df = _fetch_worksheet_df(
+            ConfigSheets.SPREADSHEET_NAME.value,
+            ConfigSheets.OFFERS_SHEET_NAME.value,
+        )
+        players_df = _fetch_worksheet_df(
+            ConfigSheets.SPREADSHEET_NAME.value,
+            ConfigSheets.PLAYERS_SHEET_NAME.value,
+        )
 
 
         config = Config(
