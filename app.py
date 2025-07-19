@@ -6,9 +6,28 @@ import matplotlib.pyplot as plt
 from typing import Any, Dict, cast
 from logger import Logger, Log_Action
 
-def plot_chapter_wins(log_df: pd.DataFrame) -> None:
-    
+def plot_chapter_completion_per_day(log_df: pd.DataFrame) -> None:
 
+    mask = log_df["action"].isin([Log_Action.WIN_CHAPTER.value])
+    results_df = log_df.loc[mask].copy()
+
+    if "payload" in results_df.columns:
+        payload_cols = results_df["payload"].apply(pd.Series)
+        results_df = pd.concat([results_df.drop(columns=["payload"]), payload_cols], axis=1)
+
+    st.dataframe(results_df)
+
+    counts = (
+        results_df.groupby(["current_day", "action"])
+        .size()
+        .unstack(fill_value=0)
+        .rename_axis(None, axis=1)  # cleaner column labels
+        .sort_index()
+    )
+
+    st.line_chart(counts)
+
+def plot_chapter_wins(log_df: pd.DataFrame) -> None:
     # Keep only win or loss chapter events
     mask = log_df["action"].isin([Log_Action.WIN_CHAPTER.value, Log_Action.LOSE_CHAPTER.value])
     result_df = log_df.loc[mask].copy()
@@ -101,6 +120,7 @@ if st.session_state.simulation_done:
     if st.button("Show Graphs"):
         st.subheader("Simulation Logs")
         plot_chapter_wins(log_df)
+        plot_chapter_completion_per_day(log_df)
 
     
     
