@@ -104,7 +104,7 @@ edited_players_config = st.data_editor(config.players_df)
 if "simulation_done" not in st.session_state:
     st.session_state.simulation_done = False
 
-if st.button("Run Simulation"):
+if st.button("Run Simulation & Graphs"):
 
     config.reasign_config(
     new_gear_levels_config=edited_gear_levels_config,
@@ -121,25 +121,24 @@ if st.button("Run Simulation"):
     st.session_state.simulation_done = True
 
 
-# Show results
-if st.session_state.simulation_done:
-    log_df = Logger.get_logs_as_dataframe()
+    # Show results
+    if st.session_state.simulation_done:
+        log_df = Logger.get_logs_as_dataframe()
 
-        # Expand the 'time' dict column into separate columns
-    if 'time' in log_df.columns:
-        time_cols = log_df['time'].apply(pd.Series)
-        log_df = pd.concat([log_df.drop(columns=['time']), time_cols], axis=1)
+            # Expand the 'time' dict column into separate columns
+        if 'time' in log_df.columns:
+            time_cols = log_df['time'].apply(pd.Series)
+            log_df = pd.concat([log_df.drop(columns=['time']), time_cols], axis=1)
 
-    # ---------- Action filter -------------
-    actions_available = sorted(log_df["action"].unique())
-    selected_actions = st.multiselect(
-        "Filter by action", options=actions_available, default=actions_available
-    )
-    filtered_df = log_df[log_df["action"].isin(selected_actions)]
+        # ---------- Action filter -------------
+        actions_available = sorted(log_df["action"].unique())
+        selected_actions = st.multiselect(
+            "Filter by action", options=actions_available, default=actions_available
+        )
+        filtered_df = log_df[log_df["action"].isin(selected_actions)]
 
-    st.dataframe(filtered_df)
+        st.dataframe(filtered_df)
 
-    if st.button("Show Graphs"):
         st.subheader("Simulation Logs")
         plot_chapter_wins(log_df)
         plot_chapter_completion_per_day(log_df)
