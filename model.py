@@ -81,7 +81,7 @@ class Timer:
         return {
             "total_time": int(self.total_time),
             "current_day": int(self.current_day()),
-            "session_time": int(self.session_time)
+            "session_time": int(self.session_time),
         }
 
     def increment_play_chapter(self):
@@ -339,7 +339,19 @@ class Player_meta_progression:
             (gear for gear in self.gear_inventory if gear.piece == piece and gear.set == set),
             None
         )
-        
+
+        if (piece == Gear_pieces.DEFAULT or set == Gear_sets.DEFAULT):
+            Logger.add_log(
+                Log_Action.ERROR,
+                self.time.get_timer_info(),
+                f"Added gear of {piece.value} and {set.value} to rarity {rarity}",
+                {
+                    "piece": piece.value,
+                    "set": set.value,
+                    "rarity": rarity.name
+                }
+            )
+
         if matching_gear:
             matching_gear.rarity_list[rarity] += 1
 
@@ -361,7 +373,7 @@ class Player_meta_progression:
         return
     
     def add_designs(self, amount: int):
-        chosen_piece = random.choice(list(self.designs.keys()))
+        chosen_piece = random.choice([piece for piece in self.designs.keys() if piece != Gear_pieces.DEFAULT])
         self.designs[chosen_piece] += amount
 
         Logger.add_log(
@@ -634,6 +646,7 @@ class model:
 
     current_day: int
     current_day_session: int
+    current_session: int
 
     player_behavior: dict[str, int]
 
@@ -669,6 +682,8 @@ class model:
         #avg_session_length = timer_config.loc[timer_config[ConfigKeys.TIMER_ACTION.value] == ConfigKeys.AVG_SESSION_LENGTH.value,ConfigKeys.TIMER_AMOUNT.value].iloc[0]
         current_day = timer_instance.current_day()
         current_day_session = 1 
+        current_session = 1
+        
 
         meta_progression = Player_meta_progression.initialize(gear_levels_config, gear_merge_config, timer_instance)
         gacha_system = Gacha_system.initialize(gacha_config, timer_instance)
@@ -687,22 +702,26 @@ class model:
             current_day=current_day,
             player_behavior=player_behavior,
             current_day_session=current_day_session,
+            current_session=current_session,
             main_config=main_config
             )
     
     def simulate(self):
 
         self.current_day = self.timer.current_day()
-        self.current_day_session = 1
+        self.current_day_session = 0
+        self.current_session = 0
 
         while(self.rounds_done<=self.max_allowed_rounds
               and self.meta_progression.chapter_level<=self.total_chapters):
-            self.rounds_done+=1          
-
+            self.rounds_done+=1 # just for avoiding infinite loops
+            self.current_day_session+= 1 # equivalent to rounds, every round is a session
+            self.current_session += 1
+            
             # Check current session time
-            if self.timer.current_session_time() >= self.player_behavior[ConfigKeys.PLAYER_AVG_SESSION_LENGTH.value]:
-                self.timer.new_session()
-                self.current_day_session += 1
+            #if self.timer.current_session_time() >= self.player_behavior[ConfigKeys.PLAYER_AVG_SESSION_LENGTH.value]:
+            #    self.timer.new_session()
+            #    self.current_day_session += 1
 
             # Check max sessions per day
             if self.current_day_session > self.player_behavior[ConfigKeys.PLAYER_SESSIONS_PER_DAY.value]:
@@ -731,6 +750,21 @@ class model:
             chapter_config = self.main_config.get_chapter_config(chapter_level)
 
             victory_bool = self.chapters.simulate(chapter_level, self.meta_progression, self.gacha_system)
+
+            Logger.add_log(
+                Log_Action.SESSION_END,
+                self.timer.get_timer_info(),
+                f"Chapter {chapter_level} simulation completed with {'victory' if victory_bool else 'defeat'}",
+                {
+                    "chapter_level": chapter_level,
+                    "victory": victory_bool,
+                    "current_day": self.current_day,
+                    "current_day_session": self.current_day_session,
+                    "current_session": self.current_session,
+                    "current_coins": self.meta_progression.gold,
+                    "designs": self.meta_progression.designs,    
+                    }
+            )
 
             # If victory, go to next chapter
             if victory_bool:

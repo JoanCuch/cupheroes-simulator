@@ -2,9 +2,31 @@ import streamlit as st
 import pandas as pd
 from config_import import Config, ConfigKeys
 from model import model, Logger, Timer
-import matplotlib.pyplot as plt
 from typing import Any, Dict, cast
 from logger import Logger, Log_Action
+
+def plot_resources_per_session(log_df: pd.DataFrame) -> None:
+
+    mask = log_df["action"].isin([Log_Action.SESSION_END.value])
+    resources_session_df = log_df.loc[mask].copy()
+
+    if "payload" in resources_session_df.columns:
+        payload_cols = resources_session_df["payload"].apply(pd.Series).add_prefix("session_")
+        resources_session_df = pd.concat([resources_session_df.drop(columns=["payload"]), payload_cols], axis=1)
+
+    graph_data = resources_session_df[["session_current_session", "session_current_coins", "session_chapter_level","session_designs"]].set_index("session_current_session").sort_index()
+    st.dataframe(graph_data)
+
+
+    st.line_chart(graph_data["session_current_coins"])
+    st.line_chart(graph_data["session_chapter_level"])
+
+    # --- Designs per session (if available) -------------------------------------
+    if "session_designs" in graph_data.columns:
+        designs_df = pd.DataFrame(graph_data["session_designs"].tolist(), index=graph_data.index).fillna(0)
+        st.line_chart(designs_df)
+
+    return
 
 def plot_chapter_completion_per_day(log_df: pd.DataFrame) -> None:
 
@@ -121,6 +143,7 @@ if st.session_state.simulation_done:
         st.subheader("Simulation Logs")
         plot_chapter_wins(log_df)
         plot_chapter_completion_per_day(log_df)
+        plot_resources_per_session(log_df)
 
     
     

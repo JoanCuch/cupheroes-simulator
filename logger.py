@@ -19,6 +19,8 @@ class Log_Action(Enum) :
     EQUIP_GEAR = "equip_gear"
     DAILY_FREE_GACHA = "daily_free_gacha"
     PURCHASE_OFFER = "purchase_offer"
+    SESSION_END = "session_end"
+    ERROR = "error"
 
 class Logger:
     _logs = []
