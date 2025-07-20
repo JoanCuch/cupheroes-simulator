@@ -21,6 +21,7 @@ class Log_Action(Enum) :
     PURCHASE_OFFER = "purchase_offer"
     SESSION_END = "session_end"
     ERROR = "error"
+    SIMULATION_COMPLETED = "simulation_completed"
 
 class Logger:
     _logs = []

@@ -431,14 +431,25 @@ class Player_meta_progression:
         # Pass Time
         self.time.increment_meta_progression()
 
-        # Merge Gear
-        for gear in self.gear_inventory:
+        #Merge Gear
+        sorted_gear_equipped = sorted(self.equipped_gear.items(), key=lambda g: g[1].level, reverse=False)
+
+        for (piece_type, gear) in sorted_gear_equipped:
             for rarity in Gear_rarity:
                 if rarity != Gear_rarity.COMMON:
                     success = gear.merge(rarity, self.gear_inventory)
 
-        # Sort gear inventory by highest level and try to level up
+        """
         sorted_gear_inventory = sorted(self.gear_inventory, key=lambda g: g.level, reverse=True)
+        for gear in sorted_gear_inventory:
+            for rarity in Gear_rarity:
+                if rarity != Gear_rarity.COMMON:
+                    success = gear.merge(rarity, self.gear_inventory)
+                    """
+
+        # Sort gear inventory by highest level and try to level up
+        #Start for the lowest level gear to fast level ups
+        sorted_gear_inventory = sorted(self.gear_inventory, key=lambda g: g.level, reverse=False)
         for gear in sorted_gear_inventory:
             gear.level_up(self)
 
@@ -712,11 +723,21 @@ class model:
         self.current_day_session = 0
         self.current_session = 0
 
+        # Give to the player enough gear to start
+        for piece in Gear_pieces:
+            if piece != Gear_pieces.DEFAULT:
+                self.meta_progression.add_gear(piece, random.choice([s for s in Gear_sets if s != Gear_sets.DEFAULT]), Gear_rarity.COMMON)
+                continue
+
         while(self.rounds_done<=self.max_allowed_rounds
               and self.meta_progression.chapter_level<=self.total_chapters):
             self.rounds_done+=1 # just for avoiding infinite loops
             self.current_day_session+= 1 # equivalent to rounds, every round is a session
             self.current_session += 1
+
+            #fake progression for testing purposes
+            #self.meta_progression.add_designs(1000)
+        
             
             # Check current session time
             #if self.timer.current_session_time() >= self.player_behavior[ConfigKeys.PLAYER_AVG_SESSION_LENGTH.value]:
@@ -751,6 +772,14 @@ class model:
 
             victory_bool = self.chapters.simulate(chapter_level, self.meta_progression, self.gacha_system)
 
+            def _gear_level(piece: Gear_pieces) -> int:
+                gear_obj = self.meta_progression.equipped_gear.get(piece)
+                return gear_obj.level if gear_obj else 0
+
+            def _gear_max_rarity(piece: Gear_pieces) -> str:
+                gear_obj = self.meta_progression.equipped_gear.get(piece)
+                return str(gear_obj.max_rarity) if gear_obj else str(Gear_rarity.COMMON)
+
             Logger.add_log(
                 Log_Action.SESSION_END,
                 self.timer.get_timer_info(),
@@ -762,12 +791,38 @@ class model:
                     "current_day_session": self.current_day_session,
                     "current_session": self.current_session,
                     "current_coins": self.meta_progression.gold,
-                    "designs": self.meta_progression.designs,    
-                    }
+                    "designs": self.meta_progression.designs,
+                    "weapon_gear_level": _gear_level(Gear_pieces.WEAPON),
+                    "ring_gear_level": _gear_level(Gear_pieces.RING),
+                    "gloves_gear_level": _gear_level(Gear_pieces.GLOVES),
+                    "helmet_gear_level": _gear_level(Gear_pieces.HELMET),
+                    "armor_gear_level": _gear_level(Gear_pieces.ARMOR),
+                    "boots_gear_level": _gear_level(Gear_pieces.BOOTS),
+                    "weapon_gear_rarity": _gear_max_rarity(Gear_pieces.WEAPON),
+                    "ring_gear_rarity": _gear_max_rarity(Gear_pieces.RING),
+                    "gloves_gear_rarity": _gear_max_rarity(Gear_pieces.GLOVES),
+                    "helmet_gear_rarity": _gear_max_rarity(Gear_pieces.HELMET),
+                    "armor_gear_rarity": _gear_max_rarity(Gear_pieces.ARMOR),
+                    "boots_gear_rarity": _gear_max_rarity(Gear_pieces.BOOTS)
+                }
             )
 
             # If victory, go to next chapter
             if victory_bool:
+                if(self.meta_progression.chapter_level == self.total_chapters):
+                    Logger.add_log(
+                        Log_Action.SIMULATION_COMPLETED,
+                        self.timer.get_timer_info(),
+                        "Simulation completed: reached the last chapter",
+                        {
+                            "rounds_done": self.rounds_done,
+                            "current_day": self.current_day,
+                            "current_day_session": self.current_day_session,
+                            "current_session": self.current_session,
+                            "chapter_level": self.meta_progression.chapter_level
+                        }
+                    )
+                    break
                 self.meta_progression.chapter_level += 1
 
         return

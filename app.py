@@ -5,30 +5,37 @@ from model import model, Logger, Timer
 from typing import Any, Dict, cast
 from logger import Logger, Log_Action
 
-def plot_resources_per_session(log_df: pd.DataFrame) -> None:
-
-    mask = log_df["action"].isin([Log_Action.SESSION_END.value])
-    resources_session_df = log_df.loc[mask].copy()
-
-    if "payload" in resources_session_df.columns:
-        payload_cols = resources_session_df["payload"].apply(pd.Series).add_prefix("session_")
-        resources_session_df = pd.concat([resources_session_df.drop(columns=["payload"]), payload_cols], axis=1)
-
-    graph_data = resources_session_df[["session_current_session", "session_current_coins", "session_chapter_level","session_designs"]].set_index("session_current_session").sort_index()
-    st.dataframe(graph_data)
 
 
-    st.line_chart(graph_data["session_current_coins"])
-    st.line_chart(graph_data["session_chapter_level"])
+def filtered_log(log_df: pd.DataFrame) -> None:
 
-    # --- Designs per session (if available) -------------------------------------
-    if "session_designs" in graph_data.columns:
-        designs_df = pd.DataFrame(graph_data["session_designs"].tolist(), index=graph_data.index).fillna(0)
-        st.line_chart(designs_df)
+    #filters by action tag
+    st.subheader("Simulation Logs")
+    st.text("This is a log of all the simulation. You can filter the log by action tag. May take a pair of seconds to load.")
+
+    actions_available = sorted(log_df["action"].unique())
+    selected_actions = st.multiselect(
+        "Filter by action", options=actions_available, default=actions_available
+    )
+    filtered_df = log_df[log_df["action"].isin(selected_actions)]
+
+    # show the log
+    
+    st.dataframe(filtered_df)
 
     return
 
-def plot_chapter_completion_per_day(log_df: pd.DataFrame) -> None:
+def plots(log_df: pd.DataFrame) -> None:
+
+    st.header("Simulation Plots")
+
+
+    st.subheader("Simulation Plots")
+
+
+    # -------------------
+    # Combat & Cahpter Plots
+    # -------------------
 
     mask = log_df["action"].isin([Log_Action.WIN_CHAPTER.value])
     results_df = log_df.loc[mask].copy()
@@ -49,36 +56,58 @@ def plot_chapter_completion_per_day(log_df: pd.DataFrame) -> None:
 
     st.line_chart(counts)
 
-def plot_chapter_wins(log_df: pd.DataFrame) -> None:
-    # Keep only win or loss chapter events
-    mask = log_df["action"].isin([Log_Action.WIN_CHAPTER.value, Log_Action.LOSE_CHAPTER.value])
-    result_df = log_df.loc[mask].copy()
 
-    if result_df.empty:
-        st.info("No chapter win/lose events to display.")
-        return
+    ### Show the log of combats per session
 
-    # Aggregate counts per day and result
-    counts = (
-        result_df.groupby(["current_day", "action"])
-        .size()
-        .unstack(fill_value=0)
-        .rename(
-            columns={
-                Log_Action.WIN_CHAPTER.value: "wins",
-                Log_Action.LOSE_CHAPTER.value: "losses",
-            }
-        )
-        .sort_index()
-    )
+    st.subheader("Combat Results Log")
+    st.text("This is a log of all the combats. Here is information about player proximity to winning every chapter.")
+    mask = log_df["action"].isin([Log_Action.LOSE_CHAPTER.value, Log_Action.WIN_CHAPTER.value])
+    combats_df = log_df.loc[mask].copy()
 
-    # Ensure both columns exist to stabilise chart when one is missing
-    for col in ("wins", "losses"):
-        if col not in counts.columns:
-            counts[col] = 0
+    if "payload" in combats_df.columns:
+        payload_cols = combats_df["payload"].apply(pd.Series).add_prefix("combat_")
+        combats_df = pd.concat([combats_df.drop(columns=["payload"]), payload_cols], axis=1)
 
-    st.subheader("Chapter Results per Day")
-    st.bar_chart(counts)
+    st.dataframe(combats_df)
+
+
+
+    # -------------------
+    # Resources Plots
+    # -------------------
+
+    mask = log_df["action"].isin([Log_Action.SESSION_END.value])
+    resources_df = log_df.loc[mask].copy()
+
+    if "payload" in resources_df.columns:
+        payload_cols = resources_df["payload"].apply(pd.Series).add_prefix("session_")
+        resources_df = pd.concat([resources_df.drop(columns=["payload"]), payload_cols], axis=1)
+
+    
+    graph_data = resources_df.set_index("current_day").sort_index().copy()
+
+    st.line_chart(graph_data["session_chapter_level"])
+
+    graph_data = resources_df.set_index("session_current_session").sort_index().copy()
+    st.dataframe(graph_data)
+
+
+    st.line_chart(graph_data["session_current_coins"])
+    st.line_chart(graph_data["session_chapter_level"])
+    st.line_chart(graph_data[["session_weapon_gear_level", "session_ring_gear_level", "session_gloves_gear_level", "session_helmet_gear_level", "session_armor_gear_level", "session_boots_gear_level"]])
+    st.bar_chart(graph_data[["session_weapon_gear_rarity", "session_ring_gear_rarity", "session_gloves_gear_rarity", "session_helmet_gear_rarity", "session_armor_gear_rarity", "session_boots_gear_rarity"]])
+
+
+    if "session_designs" in graph_data.columns:
+        designs_df = pd.DataFrame(graph_data["session_designs"].tolist(), index=graph_data.index).fillna(0)
+        st.line_chart(designs_df)
+
+
+
+    return
+
+
+
 
 # ------------------------------------------------------------------
 # Manual cache refresh: clears st.cache_data and reruns the script
@@ -130,19 +159,10 @@ if st.button("Run Simulation & Graphs"):
             time_cols = log_df['time'].apply(pd.Series)
             log_df = pd.concat([log_df.drop(columns=['time']), time_cols], axis=1)
 
-        # ---------- Action filter -------------
-        actions_available = sorted(log_df["action"].unique())
-        selected_actions = st.multiselect(
-            "Filter by action", options=actions_available, default=actions_available
-        )
-        filtered_df = log_df[log_df["action"].isin(selected_actions)]
+        filtered_log(log_df)
+        plots(log_df)
+        
 
-        st.dataframe(filtered_df)
-
-        st.subheader("Simulation Logs")
-        plot_chapter_wins(log_df)
-        plot_chapter_completion_per_day(log_df)
-        plot_resources_per_session(log_df)
 
     
     
