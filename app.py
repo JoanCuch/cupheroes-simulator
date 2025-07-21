@@ -125,6 +125,9 @@ config = Config.initialize()
 
 # Display the config to allow editing
 st.subheader("Config Editor")
+st.text("Thhis config is loaded from a the spreadsheet balancing.")
+st.text("You can edit the config here. Changes will be applied when you run the simulation.")
+st.text("The changes you make here will NOT be saved in to the spreadsheet.")
 edited_gear_levels_config = st.data_editor(config.gear_levels_df)
 edited_gear_merge_config = st.data_editor(config.gear_merge_df)
 edited_chapters_config = st.data_editor(config.chapters_df)
