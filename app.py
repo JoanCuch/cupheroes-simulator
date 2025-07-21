@@ -10,7 +10,7 @@ from logger import Logger, Log_Action
 def filtered_log(log_df: pd.DataFrame) -> None:
 
     #filters by action tag
-    st.subheader("Simulation Logs")
+    st.header("Simulation Log")
     st.text("This is a log of all the simulation. You can filter the log by action tag. May take a pair of seconds to load.")
 
     actions_available = sorted(log_df["action"].unique())
@@ -29,38 +29,14 @@ def plots(log_df: pd.DataFrame) -> None:
 
     st.header("Simulation Plots")
 
-
-    st.subheader("Simulation Plots")
-
+    st.text("For context, when revering to Session, it means a loop of: one combat and level up and merging with the earned resources")
 
     # -------------------
-    # Combat & Cahpter Plots
+    # Combat & Chapter Plots
     # -------------------
-
-    mask = log_df["action"].isin([Log_Action.WIN_CHAPTER.value])
-    results_df = log_df.loc[mask].copy()
-
-    if "payload" in results_df.columns:
-        payload_cols = results_df["payload"].apply(pd.Series)
-        results_df = pd.concat([results_df.drop(columns=["payload"]), payload_cols], axis=1)
-
-    st.dataframe(results_df)
-
-    counts = (
-        results_df.groupby(["current_day", "action"])
-        .size()
-        .unstack(fill_value=0)
-        .rename_axis(None, axis=1)  # cleaner column labels
-        .sort_index()
-    )
-
-    st.line_chart(counts)
-
-
-    ### Show the log of combats per session
 
     st.subheader("Combat Results Log")
-    st.text("This is a log of all the combats. Here is information about player proximity to winning every chapter.")
+    st.text("This is a log of all the combats. it contains information about player proximity to winning every chapter.")
     mask = log_df["action"].isin([Log_Action.LOSE_CHAPTER.value, Log_Action.WIN_CHAPTER.value])
     combats_df = log_df.loc[mask].copy()
 
@@ -70,11 +46,26 @@ def plots(log_df: pd.DataFrame) -> None:
 
     st.dataframe(combats_df)
 
+    mask = log_df["action"].isin([Log_Action.WIN_CHAPTER.value])
+    results_df = log_df.loc[mask].copy()
+
+    if "payload" in results_df.columns:
+        payload_cols = results_df["payload"].apply(pd.Series)
+        results_df = pd.concat([results_df.drop(columns=["payload"]), payload_cols], axis=1)
+
+    counts = (
+        results_df.groupby(["current_day", "action"])
+        .size()
+        .unstack(fill_value=0)
+        .rename_axis(None, axis=1)  # cleaner column labels
+        .sort_index()
+    )
+
+    st.subheader("Player Progression: Victories per Day")
+    st.line_chart(counts)
 
 
-    # -------------------
-    # Resources Plots
-    # -------------------
+    ### Show the log of combats per session
 
     mask = log_df["action"].isin([Log_Action.SESSION_END.value])
     resources_df = log_df.loc[mask].copy()
@@ -86,23 +77,35 @@ def plots(log_df: pd.DataFrame) -> None:
     
     graph_data = resources_df.set_index("current_day").sort_index().copy()
 
+    st.subheader("Player Progression: Max Chapter Level per Day")
     st.line_chart(graph_data["session_chapter_level"])
+
+   
 
     graph_data = resources_df.set_index("session_current_session").sort_index().copy()
-    st.dataframe(graph_data)
+    #st.dataframe(graph_data)
 
-
-    st.line_chart(graph_data["session_current_coins"])
+    st.subheader("Player Progression: Max Chapter Level per Session")
     st.line_chart(graph_data["session_chapter_level"])
+
+    st.subheader("Player Progression: Max Level per Equiped Gear Piece")
     st.line_chart(graph_data[["session_weapon_gear_level", "session_ring_gear_level", "session_gloves_gear_level", "session_helmet_gear_level", "session_armor_gear_level", "session_boots_gear_level"]])
-    st.bar_chart(graph_data[["session_weapon_gear_rarity", "session_ring_gear_rarity", "session_gloves_gear_rarity", "session_helmet_gear_rarity", "session_armor_gear_rarity", "session_boots_gear_rarity"]])
 
 
+     # -------------------
+    # Resources Plots
+    # -------------------
+
+    st.subheader("Resources: Storaged Coins")
+    st.line_chart(graph_data["session_current_coins"])
+
+    #st.subheader("Gacha Rarity")
+    #st.bar_chart(graph_data[["session_weapon_gear_rarity", "session_ring_gear_rarity", "session_gloves_gear_rarity", "session_helmet_gear_rarity", "session_armor_gear_rarity", "session_boots_gear_rarity"]])
+
+    st.subheader("Resources: Storaged Designs, group by Gear Piece")
     if "session_designs" in graph_data.columns:
         designs_df = pd.DataFrame(graph_data["session_designs"].tolist(), index=graph_data.index).fillna(0)
         st.line_chart(designs_df)
-
-
 
     return
 
@@ -154,16 +157,17 @@ if st.button("Run Simulation & Graphs"):
     if st.session_state.simulation_done:
         log_df = Logger.get_logs_as_dataframe()
 
-            # Expand the 'time' dict column into separate columns
+        # Expand the 'time' dict column into separate columns
         if 'time' in log_df.columns:
             time_cols = log_df['time'].apply(pd.Series)
             log_df = pd.concat([log_df.drop(columns=['time']), time_cols], axis=1)
+            # Persist log dataframe in session state so it survives reruns
+            st.session_state["log_df"] = log_df
 
-        filtered_log(log_df)
-        plots(log_df)
+        #filtered_log(log_df)
+        #plots(log_df)
         
-
-
-    
-    
-    
+# Display cached logs/plots if simulation was run
+if "log_df" in st.session_state:
+    filtered_log(st.session_state["log_df"])
+    plots(st.session_state["log_df"])

@@ -759,9 +759,10 @@ class model:
             offers_list = self.main_config.offers_df[ConfigKeys.OFFER_NAME.value].tolist()
 
             for offer in offers_list:
-                if self.player_behavior[str(offer)] > 0:
+                #purchase_offer = self.player_behavior.get(str(offer), "FALSE").upper() == "TRUE"
+                purchase_offer = self.player_behavior.get(str(offer), 0) > 0 and self.player_behavior.get(str(offer), 0) == self.meta_progression.chapter_level
+                if purchase_offer:
                     self.meta_progression.apply_offer(str(offer), self.main_config.offers_df, self.gacha_system)
-            
 
             # Meta Progression Simulation
             self.meta_progression.simulate()
