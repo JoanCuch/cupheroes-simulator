@@ -151,19 +151,19 @@ if st.button("Run Simulation & Graphs"):
     model_instance = model.initialize(config)
     model_instance.simulate()
     st.session_state.simulation_done = True
+    log_df = Logger.get_logs_as_dataframe()
+
+        # Expand the 'time' dict column into separate columns
+    if 'time' in log_df.columns:
+        time_cols = log_df['time'].apply(pd.Series)
+        log_df = pd.concat([log_df.drop(columns=['time']), time_cols], axis=1)
+        # Persist log dataframe in session state so it survives reruns
+        st.session_state["log_df"] = log_df
 
 
     # Show results
-    if st.session_state.simulation_done:
-        log_df = Logger.get_logs_as_dataframe()
-
-        # Expand the 'time' dict column into separate columns
-        if 'time' in log_df.columns:
-            time_cols = log_df['time'].apply(pd.Series)
-            log_df = pd.concat([log_df.drop(columns=['time']), time_cols], axis=1)
-            # Persist log dataframe in session state so it survives reruns
-            st.session_state["log_df"] = log_df
-
+    #if st.session_state.simulation_done:
+        
         #filtered_log(log_df)
         #plots(log_df)
         
